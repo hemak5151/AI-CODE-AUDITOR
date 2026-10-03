@@ -1,0 +1,15 @@
+{
+  "finding_id": "B307-12",
+  "cwe_id": "CWE-95",
+  "severity": "high",
+  "confidence": 0.95,
+  "message": "Use of eval",
+  "explanation": "Normalized example showing how an external baseline finding maps into the shared Finding schema.",
+  "file_path": "samples/vulnerable.py",
+  "line_number": 6,
+  "line_range": {"start": 6, "end": 6},
+  "evidence": "return eval(user_input)",
+  "source": "bandit-normalized-example",
+  "suggested_remediation": "Avoid eval on untrusted input.",
+  "patch": null
+}
