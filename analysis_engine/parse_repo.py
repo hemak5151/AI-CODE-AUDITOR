@@ -1,4 +1,4 @@
-"""Parse a whole repo end to end.
+"""Parse a whole repo end to end into normalized structure JSON.
 
 Usage (from the project root):
     python -m analysis_engine.parse_repo <folder | repo.zip | git-url> [--json out.json]
@@ -8,35 +8,24 @@ import json
 from pathlib import Path
 
 from analysis_engine.ingest import from_git, from_zip, iter_source_files
-from analysis_engine.parser.treesitter_parser import parse_code
+from analysis_engine.parser.structure import extract_file
 
 
 def parse_repo(root: Path) -> dict:
     root = Path(root)
-    files = []
-    for path, language in iter_source_files(root):
-        source = path.read_text(encoding="utf-8", errors="replace")
-        parsed = parse_code(source, language)
-        files.append({
-            "file": path.relative_to(root).as_posix(),
-            "language": language,
-            "functions": parsed.functions,
-            "classes": parsed.classes,
-            "imports": parsed.imports,
-            "line_ranges": {k: list(v) for k, v in parsed.line_ranges.items()},
-            "parse_error": parsed.parse_error,
-        })
+    files = [extract_file(path, root) for path, _language in iter_source_files(root)]
     by_language: dict[str, int] = {}
     for f in files:
-        by_language[f["language"]] = by_language.get(f["language"], 0) + 1
+        by_language[f.language] = by_language.get(f.language, 0) + 1
     summary = {
         "files": len(files),
-        "with_errors": sum(1 for f in files if f["parse_error"]),
-        "functions": sum(len(f["functions"]) for f in files),
-        "classes": sum(len(f["classes"]) for f in files),
+        "with_errors": sum(1 for f in files if f.parse_error),
+        "functions": sum(len(f.functions) for f in files),
+        "classes": sum(len(f.classes) for f in files),
+        "imports": sum(len(f.imports) for f in files),
         "by_language": by_language,
     }
-    return {"summary": summary, "files": files}
+    return {"summary": summary, "files": [f.model_dump() for f in files]}
 
 
 def main() -> None:
@@ -55,7 +44,7 @@ def main() -> None:
     result = parse_repo(root)
     for f in result["files"][:25]:
         flag = f"  ERROR: {f['parse_error']}" if f["parse_error"] else ""
-        print(f"{f['file']}: {len(f['functions'])} functions, {len(f['classes'])} classes{flag}")
+        print(f"{f['file_path']}: {len(f['functions'])} functions, {len(f['classes'])} classes{flag}")
     if len(result["files"]) > 25:
         print(f"... and {len(result['files']) - 25} more files")
     print("\nSUMMARY")

@@ -48,5 +48,5 @@ def test_syntax_error_does_not_crash():
 
 
 def test_unsupported_language():
-    r = parse_code("class A {}", "java")
-    assert r.parse_error == "unsupported language: java"
+    r = parse_code("IDENT", "cobol")
+    assert r.parse_error == "unsupported language: cobol"
