@@ -14,14 +14,29 @@ import re
 from pathlib import Path
 from typing import Iterator, Optional
 
-from analysis_engine.parser.models import ClassInfo, FileStructure, FunctionInfo, ImportInfo
+from analysis_engine.parser.models import CallInfo, ClassInfo, FileStructure, FunctionInfo, ImportInfo
 from analysis_engine.parser.treesitter_parser import (
     detect_language,
     first_error_line,
     parse_tree,
 )
 
-Scope = tuple  # tuple of (kind, name) pairs, e.g. (("class", "Db"), ("function", "get"))
+# A scope is a tuple of (kind, name, info) entries,
+# e.g. (("class", "Db", ClassInfo), ("function", "get", FunctionInfo))
+Scope = tuple
+_CALL_NAME = re.compile(r"^[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*)*$")
+
+
+def _record_call(out: FileStructure, scope: Scope, text: str, line: int) -> None:
+    """Attach a call to the innermost enclosing function, or to the module."""
+    if len(text) > 200 or not _CALL_NAME.match(text):
+        return  # e.g. f().g, lambda, subscript: not a plain dotted name
+    call = CallInfo(name=text, line=line)
+    for kind, _name, info in reversed(scope):
+        if kind == "function":
+            info.calls.append(call)
+            return
+    out.module_calls.append(call)
 
 
 def _t(node) -> str:
@@ -91,12 +106,21 @@ def _py_imports(node) -> Iterator[ImportInfo]:
                 yield ImportInfo(module=_t(n), line=line)
     else:  # import_from_statement
         module = node.child_by_field_name("module_name")
-        names = []
+        names: list[str] = []
+        local_names: dict[str, str] = {}
         for n in node.children_by_field_name("name"):
-            names.append(_t(n.child_by_field_name("name")) if n.type == "aliased_import" else _t(n))
+            if n.type == "aliased_import":
+                imported = _t(n.child_by_field_name("name"))
+                alias = n.child_by_field_name("alias")
+                names.append(imported)
+                if alias is not None:
+                    local_names[_t(alias)] = imported
+            else:
+                names.append(_t(n))
         if any(c.type == "wildcard_import" for c in node.children):
             names.append("*")
-        yield ImportInfo(module=_t(module) if module else "", names=names, line=line)
+        yield ImportInfo(module=_t(module) if module else "", names=names,
+                         local_names=local_names, line=line)
 
 
 def _extract_python(root, out: FileStructure) -> None:
@@ -108,27 +132,33 @@ def _extract_python(root, out: FileStructure) -> None:
             name = _t(node.child_by_field_name("name"))
             start, end = _span(node)
             parent = _parent_class(scope)
-            out.functions.append(FunctionInfo(
+            info = FunctionInfo(
                 name=name, qualified_name=_qualified(scope, name),
                 kind="method" if parent else "function",
                 start_line=start, end_line=end,
                 params=_py_params(node), docstring=_py_docstring(node), parent_class=parent,
-            ))
-            new_scope = scope + (("function", name),)
+            )
+            out.functions.append(info)
+            new_scope = scope + (("function", name, info),)
         elif node.type == "class_definition" and node.child_by_field_name("name") is not None:
             name = _t(node.child_by_field_name("name"))
             start, end = _span(node)
             supers = node.child_by_field_name("superclasses")
             bases = [_t(c) for c in supers.named_children
                      if c.type not in ("comment", "keyword_argument")] if supers else []
-            out.classes.append(ClassInfo(
+            cinfo = ClassInfo(
                 name=name, qualified_name=_qualified(scope, name),
                 start_line=start, end_line=end, bases=bases, docstring=_py_docstring(node),
-            ))
-            new_scope = scope + (("class", name),)
+            )
+            out.classes.append(cinfo)
+            new_scope = scope + (("class", name, cinfo),)
         elif node.type in ("import_statement", "import_from_statement"):
             out.imports.extend(_py_imports(node))
             continue
+        elif node.type == "call":
+            fn = node.child_by_field_name("function")
+            if fn is not None:
+                _record_call(out, scope, _t(fn), node.start_point[0] + 1)
         for child in reversed(node.children):
             stack.append((child, new_scope))
 
@@ -176,20 +206,60 @@ def _js_import(node) -> Optional[ImportInfo]:
     if source is None:
         return None
     names: list[str] = []
+    local_names: dict[str, str] = {}
+    alias: Optional[str] = None
     for c in node.children:
         if c.type != "import_clause":
             continue
         for x in c.children:
             if x.type == "identifier":
-                names.append(_t(x))
+                names.append(_t(x))  # default import (local name)
             elif x.type == "named_imports":
                 for spec in x.named_children:
                     if spec.type == "import_specifier":
                         n = spec.child_by_field_name("name")
-                        names.append(_t(n) if n is not None else _t(spec))
+                        a = spec.child_by_field_name("alias")
+                        imported = _t(n) if n is not None else _t(spec)
+                        names.append(imported)
+                        if a is not None:
+                            local_names[_t(a)] = imported
             elif x.type == "namespace_import":
                 names.append("*")
-    return ImportInfo(module=_t(source).strip("'\""), names=names, line=node.start_point[0] + 1)
+                ident = next((y for y in x.named_children if y.type == "identifier"), None)
+                alias = _t(ident) if ident is not None else None
+    return ImportInfo(module=_t(source).strip("'\""), names=names, alias=alias,
+                      local_names=local_names, line=node.start_point[0] + 1)
+
+
+def _js_require_target(call_node) -> Optional[str]:
+    fn = call_node.child_by_field_name("function")
+    args = call_node.child_by_field_name("arguments")
+    if fn is not None and _t(fn) == "require" and args is not None and args.named_child_count:
+        first = args.named_children[0]
+        if first.type == "string":
+            return _t(first).strip("'\"")
+    return None
+
+
+def _js_require_binding(declarator, value, out: FileStructure) -> None:
+    """const x = require('m')  /  const { a, b } = require('m')"""
+    target = _js_require_target(value)
+    name_node = declarator.child_by_field_name("name")
+    if target is None or name_node is None:
+        return
+    alias, names = None, []
+    if name_node.type == "identifier":
+        alias = _t(name_node)
+    elif name_node.type == "object_pattern":
+        for c in name_node.named_children:
+            if c.type == "shorthand_property_identifier_pattern":
+                names.append(_t(c))
+            elif c.type == "pair_pattern":
+                key = c.child_by_field_name("key")
+                if key is not None:
+                    names.append(_t(key))
+    out.imports.append(ImportInfo(module=target, names=names, alias=alias,
+                                  line=declarator.start_point[0] + 1))
 
 
 def _extract_javascript(root, out: FileStructure) -> None:
@@ -202,14 +272,14 @@ def _extract_javascript(root, out: FileStructure) -> None:
                 and node.child_by_field_name("name") is not None:
             name = _t(node.child_by_field_name("name"))
             start, end = _span(node)
-            parent = _parent_class(scope)
-            out.functions.append(FunctionInfo(
+            info = FunctionInfo(
                 name=name, qualified_name=_qualified(scope, name),
                 kind="method" if t == "method_definition" else "function",
                 start_line=start, end_line=end, params=_js_params(node),
-                docstring=_js_doc(node), parent_class=parent,
-            ))
-            new_scope = scope + (("function", name),)
+                docstring=_js_doc(node), parent_class=_parent_class(scope),
+            )
+            out.functions.append(info)
+            new_scope = scope + (("function", name, info),)
         elif t == "variable_declarator":
             value = node.child_by_field_name("value")
             name_node = node.child_by_field_name("name")
@@ -217,12 +287,15 @@ def _extract_javascript(root, out: FileStructure) -> None:
                     and value.type in _JS_FUNCTION_VALUES:
                 name = _t(name_node)
                 start, end = _span(node)
-                out.functions.append(FunctionInfo(
+                info = FunctionInfo(
                     name=name, qualified_name=_qualified(scope, name), kind="function",
                     start_line=start, end_line=end, params=_js_params(value),
                     docstring=_js_doc(node), parent_class=_parent_class(scope),
-                ))
-                new_scope = scope + (("function", name),)
+                )
+                out.functions.append(info)
+                new_scope = scope + (("function", name, info),)
+            elif value is not None and value.type == "call_expression":
+                _js_require_binding(node, value, out)
         elif t == "class_declaration" and node.child_by_field_name("name") is not None:
             name = _t(node.child_by_field_name("name"))
             start, end = _span(node)
@@ -230,24 +303,35 @@ def _extract_javascript(root, out: FileStructure) -> None:
             for c in node.children:
                 if c.type == "class_heritage" and c.named_children:
                     bases.append(_t(c.named_children[0]))
-            out.classes.append(ClassInfo(
+            cinfo = ClassInfo(
                 name=name, qualified_name=_qualified(scope, name),
                 start_line=start, end_line=end, bases=bases, docstring=_js_doc(node),
-            ))
-            new_scope = scope + (("class", name),)
+            )
+            out.classes.append(cinfo)
+            new_scope = scope + (("class", name, cinfo),)
         elif t == "import_statement":
             info = _js_import(node)
             if info:
                 out.imports.append(info)
             continue
-        elif t == "call_expression":  # require("x")
-            fn = node.child_by_field_name("function")
-            args = node.child_by_field_name("arguments")
-            if fn is not None and _t(fn) == "require" and args is not None and args.named_child_count:
-                first = args.named_children[0]
-                if first.type == "string":
-                    out.imports.append(ImportInfo(
-                        module=_t(first).strip("'\""), line=node.start_point[0] + 1))
+        elif t == "call_expression":
+            target = _js_require_target(node)
+            if target is not None:
+                parent = node.parent
+                bound = False
+                if parent is not None and parent.type == "variable_declarator":
+                    v = parent.child_by_field_name("value")
+                    bound = v is not None and v.id == node.id  # already recorded with its names
+                if not bound:
+                    out.imports.append(ImportInfo(module=target, line=node.start_point[0] + 1))
+            else:
+                fn = node.child_by_field_name("function")
+                if fn is not None:
+                    _record_call(out, scope, _t(fn), node.start_point[0] + 1)
+        elif t == "new_expression":
+            ctor = node.child_by_field_name("constructor")
+            if ctor is not None:
+                _record_call(out, scope, _t(ctor), node.start_point[0] + 1)
         for child in reversed(node.children):
             stack.append((child, new_scope))
 
