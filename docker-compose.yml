@@ -6,11 +6,31 @@ services:
     ports: ["8000:8000"]
     environment:
       CORS_ORIGIN: http://localhost:3000
+      AUDITOR_DATA_DIR: /data
+      OLLAMA_URL: http://ollama:11434
+      CHROMA_URL: http://chroma:8000
+    volumes:
+      - backend-data:/data
+    depends_on: [ollama, chroma]
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
     ports: ["3000:3000"]
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
     depends_on: [backend]
+  ollama:
+    image: ollama/ollama:latest
+    ports: ["11434:11434"]
+    volumes:
+      - ollama-models:/root/.ollama
+  chroma:
+    image: chromadb/chroma:latest
+    ports: ["8001:8000"]
+    volumes:
+      - chroma-data:/data
+volumes:
+  backend-data:
+  ollama-models:
+  chroma-data:

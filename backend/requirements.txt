@@ -9,3 +9,4 @@ tree-sitter-javascript>=0.23,<1
 tree-sitter-java>=0.23,<1
 python-multipart>=0.0.9,<1
 networkx>=3.2,<4
+fpdf2>=2.7,<3

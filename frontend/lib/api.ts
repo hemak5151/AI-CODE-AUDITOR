@@ -82,3 +82,5 @@ export async function getPatch(findingId: string): Promise<Patch | null> {
 }
 
 export const eventsUrl = (jobId: string) => `${base}/api/jobs/${jobId}/events`;
+export const exportUrl = (jobId: string, kind: "sarif" | "pdf") =>
+  `${base}/api/jobs/${jobId}/export/${kind}`;

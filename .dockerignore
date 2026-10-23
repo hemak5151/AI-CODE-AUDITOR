@@ -6,3 +6,4 @@ node_modules
 .next
 *.pyc
 .env
+backend/data

@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import Editor from "@monaco-editor/react";
-import { getPatch } from "../lib/api";
+import { exportUrl, getPatch } from "../lib/api";
 import type { Finding, Patch } from "../lib/api";
 import DiffView from "./DiffView";
 
@@ -73,7 +73,13 @@ function Detail({ f }: { f: Finding }) {
   );
 }
 
-export default function FindingsView({ findings }: { findings: Finding[] }) {
+export default function FindingsView({
+  findings,
+  jobId,
+}: {
+  findings: Finding[];
+  jobId: string;
+}) {
   const [sev, setSev] = useState("all");
   const [cwe, setCwe] = useState("all");
   const [selected, setSelected] = useState<Finding | null>(null);
@@ -150,6 +156,10 @@ export default function FindingsView({ findings }: { findings: Finding[] }) {
             ))}
           </select>
         </label>
+        <div style={{ margin: "12px 0", display: "flex", gap: 12 }}>
+          <a href={exportUrl(jobId, "sarif")}>Export SARIF</a>
+          <a href={exportUrl(jobId, "pdf")}>Export PDF report</a>
+        </div>
         {shown.length === 0 && (
           <p>No findings match. Only Python files are scanned for now.</p>
         )}

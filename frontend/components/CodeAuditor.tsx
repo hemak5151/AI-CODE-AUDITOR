@@ -180,7 +180,9 @@ export default function CodeAuditor() {
         )}
         {error && <p style={{ color: "#b91c1c" }}>{error}</p>}
       </div>
-      {findings && <FindingsView findings={findings} />}
+      {findings && job && (
+        <FindingsView findings={findings} jobId={job.job_id} />
+      )}
     </div>
   );
 }
