@@ -1,7 +1,22 @@
 {
   "name": "ai-code-auditor-frontend",
   "private": true,
-  "scripts": {"dev":"next dev","build":"next build","start":"next start","lint":"next lint"},
-  "dependencies": {"next":"15.5.4","react":"19.1.1","react-dom":"19.1.1"},
-  "devDependencies": {"typescript":"^5.6.3","@types/node":"^22.10.1","@types/react":"^19.0.2","@types/react-dom":"^19.0.2"}
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "next": "15.5.4",
+    "react": "19.1.1",
+    "react-dom": "19.1.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "@types/node": "^22.10.1",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2"
+  }
 }

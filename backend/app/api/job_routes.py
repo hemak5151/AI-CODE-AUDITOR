@@ -102,7 +102,8 @@ def job_events(job_id: str):
             job = db.get_job(job_id)
             if job is None:
                 return
-            payload = json.dumps({k: job[k] for k in ("job_id", "status", "progress", "message", "error")})
+            keys = ("job_id", "status", "progress", "message", "error", "files_scanned")
+            payload = json.dumps({k: job[k] for k in keys})
             if payload != last:
                 yield f"data: {payload}\n\n"
                 last = payload
@@ -111,8 +112,6 @@ def job_events(job_id: str):
             time.sleep(0.5)
 
     return StreamingResponse(stream(), media_type="text/event-stream")
-
-
 @router.get("/findings/{finding_id}/patch", response_model=Patch)
 def get_patch(finding_id: str):
     # Still mock data until Member 3's patch generator is connected.
