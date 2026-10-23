@@ -157,8 +157,12 @@ export default function FindingsView({
           </select>
         </label>
         <div style={{ margin: "12px 0", display: "flex", gap: 12 }}>
-          <a href={exportUrl(jobId, "sarif")}>Export SARIF</a>
-          <a href={exportUrl(jobId, "pdf")}>Export PDF report</a>
+          <a href={exportUrl(jobId, "sarif")} style={{ color: "#60a5fa" }}>
+            Export SARIF
+          </a>
+          <a href={exportUrl(jobId, "pdf")} style={{ color: "#60a5fa" }}>
+            Export PDF report
+          </a>
         </div>
         {shown.length === 0 && (
           <p>No findings match. Only Python files are scanned for now.</p>
