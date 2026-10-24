@@ -84,3 +84,39 @@ export async function getPatch(findingId: string): Promise<Patch | null> {
 export const eventsUrl = (jobId: string) => `${base}/api/jobs/${jobId}/events`;
 export const exportUrl = (jobId: string, kind: "sarif" | "pdf") =>
   `${base}/api/jobs/${jobId}/export/${kind}`;
+export async function getFile(
+  jobId: string,
+  path: string,
+): Promise<string | null> {
+  const res = await fetch(
+    `${base}/api/jobs/${jobId}/file?path=${encodeURIComponent(path)}`,
+  );
+  if (res.status === 404) return null;
+  const d = await parse<{ path: string; content: string }>(res);
+  return d.content;
+}
+
+export async function setDecision(
+  jobId: string,
+  findingId: string,
+  decision: "accepted" | "rejected",
+) {
+  return parse<{ finding_id: string; decision: string }>(
+    await fetch(
+      `${base}/api/jobs/${jobId}/findings/${encodeURIComponent(findingId)}/decision`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision }),
+      },
+    ),
+  );
+}
+
+export async function getDecisions(
+  jobId: string,
+): Promise<Record<string, string>> {
+  return parse<Record<string, string>>(
+    await fetch(`${base}/api/jobs/${jobId}/decisions`),
+  );
+}

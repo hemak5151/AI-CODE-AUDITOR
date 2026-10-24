@@ -4,7 +4,7 @@ import sqlite3
 from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 ALLOWED_FIELDS = {"status", "progress", "message", "error", "files_scanned"}
 
@@ -27,6 +27,14 @@ def _connect() -> sqlite3.Connection:
     conn.execute(
         "CREATE TABLE IF NOT EXISTS findings ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT, data TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS files ("
+        "job_id TEXT, path TEXT, content TEXT, PRIMARY KEY (job_id, path))"
+    )
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS decisions ("
+        "job_id TEXT, finding_id TEXT, decision TEXT, PRIMARY KEY (job_id, finding_id))"
     )
     return conn
 
@@ -67,3 +75,31 @@ def get_findings(job_id: str) -> List[dict]:
     with closing(_connect()) as conn:
         rows = conn.execute("SELECT data FROM findings WHERE job_id=? ORDER BY id", (job_id,)).fetchall()
     return [json.loads(r["data"]) for r in rows]
+
+
+def add_files(job_id: str, files: Dict[str, str]) -> None:
+    with closing(_connect()) as conn, conn:
+        conn.executemany(
+            "INSERT OR REPLACE INTO files (job_id, path, content) VALUES (?, ?, ?)",
+            [(job_id, path, content) for path, content in files.items()],
+        )
+
+
+def get_file(job_id: str, path: str) -> Optional[str]:
+    with closing(_connect()) as conn:
+        row = conn.execute("SELECT content FROM files WHERE job_id=? AND path=?", (job_id, path)).fetchone()
+    return row["content"] if row else None
+
+
+def set_decision(job_id: str, finding_id: str, decision: str) -> None:
+    with closing(_connect()) as conn, conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO decisions (job_id, finding_id, decision) VALUES (?, ?, ?)",
+            (job_id, finding_id, decision),
+        )
+
+
+def get_decisions(job_id: str) -> Dict[str, str]:
+    with closing(_connect()) as conn:
+        rows = conn.execute("SELECT finding_id, decision FROM decisions WHERE job_id=?", (job_id,)).fetchall()
+    return {r["finding_id"]: r["decision"] for r in rows}

@@ -1,5 +1,4 @@
 "use client";
-import { useState } from "react";
 import { DiffEditor } from "@monaco-editor/react";
 import type { Patch } from "../lib/api";
 
@@ -23,10 +22,15 @@ function split(diff: string) {
   return { original: original.join("\n"), modified: modified.join("\n") };
 }
 
-export default function DiffView({ patch }: { patch: Patch }) {
-  const [decision, setDecision] = useState<"accepted" | "rejected" | null>(
-    null,
-  );
+export default function DiffView({
+  patch,
+  decision,
+  onDecide,
+}: {
+  patch: Patch;
+  decision?: string | null;
+  onDecide: (d: "accepted" | "rejected") => void;
+}) {
   if (!patch.unified_diff) return <p>This patch has no diff.</p>;
   const { original, modified } = split(patch.unified_diff);
 
@@ -57,8 +61,8 @@ export default function DiffView({ patch }: { patch: Patch }) {
       <div
         style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center" }}
       >
-        <button onClick={() => setDecision("rejected")}>Reject</button>
-        <button onClick={() => setDecision("accepted")}>Accept</button>
+        <button onClick={() => onDecide("rejected")}>Reject</button>
+        <button onClick={() => onDecide("accepted")}>Accept</button>
         <button onClick={download}>Download patch</button>
         {decision && <b>Patch {decision}</b>}
       </div>

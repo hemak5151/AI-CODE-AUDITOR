@@ -1,8 +1,15 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import Editor from "@monaco-editor/react";
-import { exportUrl, getPatch } from "../lib/api";
+import type { OnMount } from "@monaco-editor/react";
+import {
+  exportUrl,
+  getDecisions,
+  getFile,
+  getPatch,
+  setDecision,
+} from "../lib/api";
 import type { Finding, Patch } from "../lib/api";
 import DiffView from "./DiffView";
 
@@ -21,17 +28,48 @@ const box: CSSProperties = {
   marginBottom: 16,
 };
 
-function Detail({ f }: { f: Finding }) {
+function Detail({
+  f,
+  jobId,
+  decision,
+  onDecide,
+}: {
+  f: Finding;
+  jobId: string;
+  decision?: string;
+  onDecide: (d: "accepted" | "rejected") => void;
+}) {
   const [patch, setPatch] = useState<Patch | null | undefined>(undefined);
   const [open, setOpen] = useState(false);
+  const [source, setSource] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    getFile(jobId, f.file_path)
+      .then(setSource)
+      .catch(() => setSource(null));
+  }, [jobId, f.file_path]);
+
+  const onMount: OnMount = (editor, monaco) => {
+    const line = f.line_number;
+    editor.revealLineInCenter(line);
+    editor.createDecorationsCollection([
+      {
+        range: new monaco.Range(line, 1, line, 1),
+        options: { isWholeLine: true, className: "finding-line" },
+      },
+    ]);
+  };
+
   function viewPatch() {
     setOpen(true);
     getPatch(f.finding_id)
       .then(setPatch)
       .catch(() => setPatch(null));
   }
+
   return (
     <div style={box}>
+      <style>{".finding-line{background:rgba(220,38,38,0.35)}"}</style>
       <h3>
         {f.message}{" "}
         <span style={{ color: COLOR[f.severity] }}>[{f.severity}]</span>
@@ -44,7 +82,23 @@ function Detail({ f }: { f: Finding }) {
         {f.file_path}:{f.line_number}
       </p>
       <p>{f.explanation}</p>
-      {f.evidence && (
+      {source === undefined && <p>Loading file…</p>}
+      {typeof source === "string" && (
+        <Editor
+          key={`${f.file_path}:${f.line_number}`}
+          height="320px"
+          language="python"
+          value={source}
+          theme="vs-dark"
+          onMount={onMount}
+          options={{
+            readOnly: true,
+            minimap: { enabled: false },
+            scrollBeyondLastLine: false,
+          }}
+        />
+      )}
+      {source === null && f.evidence && (
         <Editor
           height="120px"
           language="python"
@@ -68,7 +122,9 @@ function Detail({ f }: { f: Finding }) {
       {open && patch === null && (
         <p>No patch available for this finding yet.</p>
       )}
-      {open && patch && <DiffView patch={patch} />}
+      {open && patch && (
+        <DiffView patch={patch} decision={decision} onDecide={onDecide} />
+      )}
     </div>
   );
 }
@@ -83,6 +139,22 @@ export default function FindingsView({
   const [sev, setSev] = useState("all");
   const [cwe, setCwe] = useState("all");
   const [selected, setSelected] = useState<Finding | null>(null);
+  const [decisions, setDecisions] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    getDecisions(jobId)
+      .then(setDecisions)
+      .catch(() => setDecisions({}));
+  }, [jobId]);
+
+  async function decide(findingId: string, d: "accepted" | "rejected") {
+    try {
+      await setDecision(jobId, findingId, d);
+      setDecisions((prev) => ({ ...prev, [findingId]: d }));
+    } catch {
+      /* the buttons simply do not change state if the save fails */
+    }
+  }
 
   const cwes = useMemo(
     () => Array.from(new Set(findings.map((f) => f.cwe_id || "No CWE"))).sort(),
@@ -187,10 +259,19 @@ export default function FindingsView({
             </b>{" "}
             · {f.cwe_id || "No CWE"} · {f.message} · {f.file_path}:
             {f.line_number}
+            {decisions[f.finding_id] && <i> · {decisions[f.finding_id]}</i>}
           </div>
         ))}
       </div>
-      {selected && <Detail key={selected.finding_id} f={selected} />}
+      {selected && (
+        <Detail
+          key={selected.finding_id}
+          f={selected}
+          jobId={jobId}
+          decision={decisions[selected.finding_id]}
+          onDecide={(d) => decide(selected.finding_id, d)}
+        />
+      )}
     </>
   );
 }
