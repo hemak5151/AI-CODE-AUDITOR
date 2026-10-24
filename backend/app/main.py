@@ -5,6 +5,7 @@ from backend.app.api.job_routes import router as job_router
 from backend.app.api.guideline_routes import router as guideline_router
 from backend.app.api.export_routes import router as export_router
 from backend.app.api.file_routes import router as file_router
+from backend.app.api.results_routes import router as results_router
 from backend.app.core.config import settings
 
 app = FastAPI(title="AI Code Refactoring & Security Auditor", version="0.1.0")
@@ -23,3 +24,4 @@ app.include_router(job_router, prefix="/api")
 app.include_router(guideline_router, prefix="/api")
 app.include_router(export_router, prefix="/api")
 app.include_router(file_router, prefix="/api")
+app.include_router(results_router, prefix="/api")

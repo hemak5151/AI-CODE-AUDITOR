@@ -10,7 +10,7 @@ import {
 } from "../lib/api";
 import type { Job, Finding } from "../lib/api";
 import FindingsView from "./FindingsView";
-
+import Link from "next/link";
 const box: CSSProperties = {
   border: "1px solid #d4d4d8",
   borderRadius: 10,
@@ -110,6 +110,11 @@ export default function CodeAuditor() {
       }}
     >
       <h1>AI Code Auditor</h1>
+      <p>
+        <Link href="/results" style={{ color: "#60a5fa" }}>
+          Results dashboard
+        </Link>
+      </p>
       <div style={box}>
         <h2>Analyze a project</h2>
         <label>

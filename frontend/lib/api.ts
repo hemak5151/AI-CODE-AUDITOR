@@ -120,3 +120,23 @@ export async function getDecisions(
     await fetch(`${base}/api/jobs/${jobId}/decisions`),
   );
 }
+export type ResultRow = {
+  config: string;
+  cwe: string;
+  precision: number;
+  recall: number;
+  f1: number;
+  fpr: number | null;
+  n: number | null;
+  f1_lo: number | null;
+  f1_hi: number | null;
+};
+export type ResultsPayload = {
+  sample: boolean;
+  files: string[];
+  rows: ResultRow[];
+};
+
+export async function getResults(): Promise<ResultsPayload> {
+  return parse<ResultsPayload>(await fetch(`${base}/api/results`));
+}
