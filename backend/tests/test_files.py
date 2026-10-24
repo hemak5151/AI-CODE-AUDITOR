@@ -48,3 +48,10 @@ def test_invalid_decision_rejected(tmp_path):
     job_id = run_upload(tmp_path)
     r = client.put(f"/api/jobs/{job_id}/findings/F-1/decision", json={"decision": "maybe"})
     assert r.status_code == 422
+
+def test_combined_patch(tmp_path):
+    job_id = run_upload(tmp_path)
+    assert client.get(f"/api/jobs/{job_id}/patch").status_code == 404
+    client.put(f"/api/jobs/{job_id}/findings/MOCK-1/decision", json={"decision": "accepted"})
+    r = client.get(f"/api/jobs/{job_id}/patch")
+    assert r.status_code == 200 and "--- a/app/db.py" in r.text

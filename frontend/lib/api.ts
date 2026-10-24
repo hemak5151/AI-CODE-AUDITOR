@@ -140,3 +140,5 @@ export type ResultsPayload = {
 export async function getResults(): Promise<ResultsPayload> {
   return parse<ResultsPayload>(await fetch(`${base}/api/results`));
 }
+export const combinedPatchUrl = (jobId: string) =>
+  `${base}/api/jobs/${jobId}/patch`;

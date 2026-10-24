@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import Editor from "@monaco-editor/react";
 import type { OnMount } from "@monaco-editor/react";
 import {
+  combinedPatchUrl,
   exportUrl,
   getDecisions,
   getFile,
@@ -228,12 +229,22 @@ export default function FindingsView({
             ))}
           </select>
         </label>
-        <div style={{ margin: "12px 0", display: "flex", gap: 12 }}>
+        <div
+          style={{
+            margin: "12px 0",
+            display: "flex",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
           <a href={exportUrl(jobId, "sarif")} style={{ color: "#60a5fa" }}>
             Export SARIF
           </a>
           <a href={exportUrl(jobId, "pdf")} style={{ color: "#60a5fa" }}>
             Export PDF report
+          </a>
+          <a href={combinedPatchUrl(jobId)} style={{ color: "#60a5fa" }}>
+            Download accepted patches
           </a>
         </div>
         {shown.length === 0 && (
