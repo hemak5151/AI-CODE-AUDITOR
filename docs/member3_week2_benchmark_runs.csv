@@ -1,0 +1,69 @@
+model,case,repeat,latency_seconds,tokens,ollama_reported_model_size,response,error
+qwen2.5-coder:7b,initial_load_and_warmup,1,32.152,2,4.72 GiB,ready,
+qwen2.5-coder:7b,sql_concept,1,6.089,15,4.72 GiB,Parameterized SQL queries prevent SQL injection by separating SQL code from data.,
+qwen2.5-coder:7b,sql_concept,2,4.904,15,4.72 GiB,Parameterized SQL queries prevent SQL injection by separating SQL logic from data.,
+qwen2.5-coder:7b,sql_injection_detection,1,43.775,99,4.72 GiB,"{ ""vulnerability"": true, ""cwe_id"": ""CWE-89"", ""severity"": ""high"", ""line_number"": 2, ""rationale"": ""The Python code constructs an SQL query using string concatenation, which can lead to SQL injection if the input is not properly sanitized. An attacker could provide a malicious input like '1; DROP TABLE users; --' to alter the intended query, leading to potential data loss or other malicious activities."" }",
+qwen2.5-coder:7b,sql_injection_detection,2,20.791,67,4.72 GiB,"{ ""vulnerability"": true, ""cwe_id"": ""CWE-89"", ""severity"": ""high"", ""line_number"": 2, ""rationale"": ""The code directly incorporates user input into an SQL query string without proper sanitization or parameterization, making it vulnerable to SQL injection attacks."" }",
+qwen2.5-coder:7b,parameterized_fix,1,18.451,34,4.72 GiB,"```python
+user_id = input(""User ID: "")
+query = ""SELECT * FROM users WHERE id = ?""
+cursor.execute(query, (user_id,))
+```",
+qwen2.5-coder:7b,parameterized_fix,2,6.561,22,4.72 GiB,"query = ""SELECT * FROM users WHERE id = ?"" cursor.execute(query, (user_id,))",
+qwen2.5-coder:0.5b,initial_load_and_warmup,1,3.43,2,0.45 GiB,ready,
+qwen2.5-coder:0.5b,sql_concept,1,3.636,106,0.45 GiB,"Parameterized SQL queries are safer than string concatenation because they prevent SQL injection, which can lead to security vulnerabilities such as injection attacks. This prevents malicious code from being executed, which can lead to information leakage or unauthorized access to data. Parameterized queries use placeholders that are replaced by actual values when the query is executed, which helps to prevent SQL injection by ensuring that only authorized data is processed. Additionally, using parameterized queries can improve performance by reducing the number of times the database needs to parse and execute the SQL query.",
+qwen2.5-coder:0.5b,sql_concept,2,2.248,67,0.45 GiB,"String concatenation can lead to SQL injection, where user input is directly embedded into the SQL query, potentially compromising the security of the database. Parameterized queries, which separate the SQL query from the data, prevent injection attacks by separating the data from the SQL code and ensuring that the data is treated as a separate set of characters.",
+qwen2.5-coder:0.5b,sql_injection_detection,1,2.779,58,0.45 GiB,"{
+  ""vulnerability"": false, ""cwe_id"": ""none"",
+  ""severity"": ""critical"",
+  ""line_number"": 1,
+  ""rationale"": ""The code does not execute a parameterized query to prevent SQL injection.""
+}",
+qwen2.5-coder:0.5b,sql_injection_detection,2,2.657,79,0.45 GiB,"{
+    ""vulnerability"": false,
+    ""cwe_id"": ""none"",
+    ""severity"": ""low"",
+    ""line_number"": 3,
+    ""rationale"": ""The given code does not handle user input safely, which can lead to SQL injection attacks. The user input is directly concatenated to the SQL query without proper validation or escaping.""
+}",
+qwen2.5-coder:0.5b,parameterized_fix,1,1.308,34,0.45 GiB,"```python
+user_id = input(""User ID: "")
+query = ""SELECT * FROM users WHERE id = ?""
+cursor.execute(query, (user_id,))
+```",
+qwen2.5-coder:0.5b,parameterized_fix,2,7.377,265,0.45 GiB,"To use a parameterized SQLite query and return only the replacement Python code, you can use the `sqlite3` module in Python. Here's how you can do it:
+
+```python
+import sqlite3
+
+def fetch_user(user_id):
+    # Connect to the SQLite database
+    conn = sqlite3.connect('example.db')
+    cursor = conn.cursor()
+
+    # Construct the SQL query using parameterized string formatting
+    query = f""SELECT * FROM users WHERE id = ?""
+
+    # Execute the query with the provided user_id
+    cursor.execute(query, (user_id,))
+
+    # Fetch the results
+    rows = cursor.fetchall()
+
+    # Close the connection
+    conn.close()
+
+    return rows
+
+# Example usage
+user_id = input(""User ID: "")
+user_info = fetch_user(user_id)
+for row in user_info:
+    print(row)
+```
+
+In this code:
+- We use a parameterized string `f""SELECT * FROM users WHERE id = ?""` to safely insert the `user_id` into the query.
+- The `execute` method is used to execute the query with the provided `user_id`.
+- The `fetchall` method retrieves all the rows from the result set.
+- Finally, we close the connection to the database using `conn.close()`.",
