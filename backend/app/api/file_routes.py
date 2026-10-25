@@ -5,12 +5,6 @@ from pydantic import BaseModel
 
 from backend.app.services import db
 from backend.app.services.mock_data import MOCK_PATCHES
-from typing import Dict, Literal
-
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-
-from backend.app.services import db
 
 router = APIRouter(tags=["files and decisions"])
 
@@ -45,6 +39,7 @@ def save_decision(job_id: str, finding_id: str, body: Decision):
 def list_decisions(job_id: str) -> Dict[str, str]:
     _require_job(job_id)
     return db.get_decisions(job_id)
+
 
 @router.get("/jobs/{job_id}/patch")
 def combined_patch(job_id: str):
