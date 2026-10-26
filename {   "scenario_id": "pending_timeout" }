@@ -1,0 +1,38 @@
+# Dataset Decision Document
+
+## 1. Project
+AI-Powered Code Refactoring & Security Compliance Auditor
+
+## 2. Selected Vulnerability Categories
+- SQL Injection
+- Command Injection
+- Path Traversal
+- Hardcoded Secrets
+- Insecure Deserialization
+
+*Status: Proposed — confirm with the team.*
+
+## 3. Candidate Datasets
+- Vul4J
+- CVEfixes
+- SecurityEval
+- Juliet
+- PrimeVul
+
+## 4. Final Dataset Selection
+Primary dataset 1: To be decided  
+Primary dataset 2: To be decided  
+Synthetic dataset: To be created
+
+## 5. Selection Criteria
+- Coverage of chosen vulnerability categories
+- Programming language compatibility
+- Availability of reliable labels
+- Dataset size and quality
+- License and permitted use
+
+## 6. Labeling Rules
+Define how the team will label vulnerable examples, safe examples, and fixed versions.
+
+## 7. Decision and Justification
+Record the selected datasets, their licenses, and why they are appropriate.
