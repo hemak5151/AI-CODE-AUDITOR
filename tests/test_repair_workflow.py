@@ -188,6 +188,7 @@ def test_repair_workflow_skips_critic_when_refactor_makes_no_change(
         provider=provider,
         log_path=tmp_path / "no_change_runs.jsonl",
         generate_patch=True,
+        max_repair_attempts=0,
     )
 
     # Detector, Guideline Checker and Refactor run.

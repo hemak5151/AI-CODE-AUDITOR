@@ -150,14 +150,15 @@ def test_sandbox_enabled_workflow_accepts_successful_execution(tmp_path):
     runner = FakeSandboxRunner(status="passed")
 
     result = run_agent_workflow(
-        agent_input=make_agent_input(),
-        source_code=SOURCE_CODE,
-        provider=provider,
-        log_path=tmp_path / "sandbox_success.jsonl",
-        generate_patch=True,
-        sandbox_runner=runner,
-        sandbox_command=["python", "--version"],
-    )
+    agent_input=make_agent_input(),
+    source_code=SOURCE_CODE,
+    provider=provider,
+    log_path=tmp_path / "sandbox_failure.jsonl",
+    generate_patch=True,
+    sandbox_runner=runner,
+    sandbox_command=["python", "--version"],
+    max_repair_attempts=0,
+)
 
     # All four agents should execute.
     assert provider.call_count == 4
@@ -200,8 +201,8 @@ def test_failed_sandbox_execution_prevents_patch_acceptance(tmp_path):
         generate_patch=True,
         sandbox_runner=runner,
         sandbox_command=["python", "--version"],
+        max_repair_attempts=0,
     )
-
     # Detector, Guideline Checker and Refactor execute.
     # Critic must not be invoked after sandbox failure.
     assert provider.call_count == 3
@@ -219,3 +220,101 @@ def test_failed_sandbox_execution_prevents_patch_acceptance(tmp_path):
     assert result.output.patch is None
 
     assert runner.calls == 1
+class RetrySequenceFakeProvider(SandboxWorkflowFakeProvider):
+    """Return different revised source files for successive repair attempts."""
+
+    def __init__(self, revised_sources):
+        super().__init__()
+        self.revised_sources = list(revised_sources)
+        self.last_source = revised_sources[-1]
+        self.refactor_calls = 0
+        self.refactor_prompts = []
+
+    def generate(self, request: LLMRequest) -> LLMResponse:
+        properties = (
+            request.response_format or {}
+        ).get("properties", {})
+
+        if "revised_source" not in properties:
+            return super().generate(request)
+
+        self.call_count += 1
+        self.refactor_calls += 1
+        self.refactor_prompts.append(request.prompt)
+
+        if self.revised_sources:
+            revised_source = self.revised_sources.pop(0)
+        else:
+            revised_source = self.last_source
+
+        response = {
+            "revised_source": revised_source,
+            "description": "Repair SQL injection vulnerability.",
+        }
+
+        return LLMResponse(
+            content=json.dumps(response),
+            model="test-model",
+            tokens=25,
+        )
+
+
+INVALID_SOURCE_CODE = (
+    'user_id = input("User ID: ")\n'
+    'query = "SELECT * FROM users WHERE id = ?"\n'
+    "cursor.execute(query, (user_id,))\n"
+    "def broken(:\n"
+)
+
+
+def test_repair_loop_recovers_after_validation_failure(tmp_path):
+    provider = RetrySequenceFakeProvider([
+        INVALID_SOURCE_CODE,
+        SAFE_SOURCE_CODE,
+    ])
+
+    result = run_agent_workflow(
+        agent_input=make_agent_input(),
+        source_code=SOURCE_CODE,
+        provider=provider,
+        log_path=tmp_path / "repair_success.jsonl",
+        generate_patch=True,
+        max_repair_attempts=1,
+    )
+
+    assert provider.refactor_calls == 2
+    assert provider.call_count == 5
+
+    assert result.repair_attempts == 1
+    assert result.patch_accepted is True
+    assert result.patch_validation.valid is True
+
+    assert result.critic_review is not None
+    assert result.critic_review.approved is True
+
+    # Verify that the second attempt received validation feedback.
+    assert "Previous repair feedback:" in provider.refactor_prompts[1]
+    assert "Validator error:" in provider.refactor_prompts[1]
+
+
+def test_repair_loop_stops_after_maximum_attempts(tmp_path):
+    provider = RetrySequenceFakeProvider([
+        INVALID_SOURCE_CODE,
+    ])
+
+    result = run_agent_workflow(
+        agent_input=make_agent_input(),
+        source_code=SOURCE_CODE,
+        provider=provider,
+        log_path=tmp_path / "repair_limit.jsonl",
+        generate_patch=True,
+        max_repair_attempts=3,
+    )
+
+    # One initial attempt plus three additional repairs.
+    assert provider.refactor_calls == 4
+
+    assert result.repair_attempts == 3
+    assert result.patch_accepted is False
+    assert result.output.patch is None
+    assert result.critic_review is None
