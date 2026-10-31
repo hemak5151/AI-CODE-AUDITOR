@@ -297,6 +297,7 @@ def test_repair_loop_recovers_after_validation_failure(tmp_path):
     assert "Validator error:" in provider.refactor_prompts[1]
 
 
+
 def test_repair_loop_stops_after_maximum_attempts(tmp_path):
     provider = RetrySequenceFakeProvider([
         INVALID_SOURCE_CODE,
@@ -318,3 +319,24 @@ def test_repair_loop_stops_after_maximum_attempts(tmp_path):
     assert result.patch_accepted is False
     assert result.output.patch is None
     assert result.critic_review is None
+
+    # Verify that all four attempts were recorded.
+    attempt_log = tmp_path / "repair_attempts.jsonl"
+
+    records = [
+        json.loads(line)
+        for line in attempt_log.read_text(
+            encoding="utf-8"
+        ).splitlines()
+    ]
+
+    assert len(records) == 4
+
+    assert all(
+        record["outcome"] == "validation_failed"
+        for record in records
+    )
+
+    assert [
+        record["attempt"] for record in records
+    ] == [1, 2, 3, 4]
