@@ -219,3 +219,34 @@ def fetch_user(user_id):
         "cannot be applied" in error.lower()
         for error in result.errors
     )
+def test_unified_diff_handles_missing_final_newline():
+    original_source = (
+        'user_id = input("User ID: ")\n'
+        'query = "SELECT * FROM users WHERE id = " + user_id\n'
+        'cursor.execute(query)'
+    )
+
+    revised_source = (
+        'user_id = input("User ID: ")\n'
+        'query = "SELECT * FROM users WHERE id = ?"\n'
+        'cursor.execute(query, (user_id,))'
+    )
+
+    diff = unified_diff(
+        old=original_source,
+        new=revised_source,
+        filename="example.py",
+    )
+
+    assert "\\ No newline at end of file" in diff
+
+    result = validate_unified_diff(
+        original_source=original_source,
+        diff_text=diff,
+        expected_file_path="example.py",
+    )
+
+    assert result.valid is True
+    assert result.applied is True
+    assert result.python_syntax_valid is True
+    assert result.updated_source == revised_source

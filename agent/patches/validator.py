@@ -50,6 +50,7 @@ def _read_patch_headers(
         i for i, line in enumerate(lines)
         if line.startswith("--- ")
     ]
+
     new_headers = [
         i for i, line in enumerate(lines)
         if line.startswith("+++ ")
@@ -127,7 +128,10 @@ def validate_unified_diff(
             )
 
     except ValueError as exc:
-        return PatchValidationResult(valid=False, errors=[str(exc)])
+        return PatchValidationResult(
+            valid=False,
+            errors=[str(exc)],
+        )
 
     try:
         with tempfile.TemporaryDirectory(
@@ -145,10 +149,14 @@ def validate_unified_diff(
                 exist_ok=True,
             )
 
-            target_file.write_text(
-                original_source,
+            # Preserve the original source line endings exactly.
+            # Prevent Windows from converting LF into CRLF.
+            with target_file.open(
+                "w",
                 encoding="utf-8",
-            )
+                newline="",
+            ) as source_file:
+                source_file.write(original_source)
 
             patch_file = root / "proposal.diff"
 
@@ -177,7 +185,9 @@ def validate_unified_diff(
             )
 
             if check.returncode != 0:
-                detail = check.stderr.strip() or check.stdout.strip()
+                detail = (
+                    check.stderr.strip() or check.stdout.strip()
+                )
 
                 return PatchValidationResult(
                     valid=False,
@@ -209,21 +219,32 @@ def validate_unified_diff(
 
                 return PatchValidationResult(
                     valid=False,
-                    errors=["Patch application failed.", detail],
+                    errors=[
+                        "Patch application failed.",
+                        detail,
+                    ],
                 )
 
-            updated_source = target_file.read_text(encoding="utf-8")
+            updated_source = target_file.read_text(
+                encoding="utf-8"
+            )
 
             syntax_valid = None
             errors = []
 
             if target_file.suffix.lower() == ".py":
                 try:
-                    ast.parse(updated_source, filename=expected_path)
+                    ast.parse(
+                        updated_source,
+                        filename=expected_path,
+                    )
                     syntax_valid = True
+
                 except SyntaxError as exc:
                     syntax_valid = False
-                    errors.append(f"Python syntax error: {exc}")
+                    errors.append(
+                        f"Python syntax error: {exc}"
+                    )
 
             return PatchValidationResult(
                 valid=not errors,
