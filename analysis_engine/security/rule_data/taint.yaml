@@ -1,0 +1,123 @@
+# Taint rules: where untrusted data enters (sources), where it becomes dangerous
+# (sinks), and what makes it safe again (sanitizers). Edit this file to extend
+# coverage; no Python changes are needed.
+#
+# match syntax:   "os.system"  exact dotted name (also matched after import aliases are expanded)
+#                 ".execute"   any receiver, e.g. cursor.execute, db.execute
+# sources match by prefix: "request.args" also matches request.args.get(...)
+version: 1
+
+cwes:
+  CWE-89:
+    name: SQL injection
+    severity: high
+    confidence: 0.9
+    remediation: Use parameterized queries (placeholders plus a separate parameter list) instead of building SQL from strings.
+  CWE-78:
+    name: OS command injection
+    severity: high
+    confidence: 0.9
+    remediation: Pass an argument list with shell=False (or avoid the shell) and validate or quote untrusted input.
+  CWE-22:
+    name: Path traversal
+    severity: high
+    confidence: 0.85
+    remediation: Reduce the input to a bare file name (basename / secure_filename) and check the resolved path stays inside the allowed directory.
+  CWE-502:
+    name: Insecure deserialization
+    severity: critical
+    confidence: 0.9
+    remediation: Do not deserialize untrusted data with pickle or unsafe YAML loaders; use JSON or yaml.safe_load.
+  CWE-95:
+    name: Code injection (eval)
+    severity: critical
+    confidence: 0.9
+    remediation: Never evaluate untrusted input as code; use a safe parser or an explicit dispatch table.
+
+languages:
+  python:
+    sources:
+      - request.args
+      - request.form
+      - request.values
+      - request.json
+      - request.data
+      - request.files
+      - request.cookies
+      - request.headers
+      - request.GET
+      - request.POST
+      - request.get_json
+      - request.get_data
+      - request.url
+      - request.path
+      - request.full_path
+      - request.view_args
+      - flask.request
+      - input
+      - raw_input
+      - sys.argv
+      - sys.stdin
+    sanitizers:
+      - {match: [int, float, bool, uuid.UUID, ipaddress.ip_address], clears: all}
+      - {match: [shlex.quote, pipes.quote], clears: [CWE-78]}
+      - {match: [os.path.basename, werkzeug.utils.secure_filename, secure_filename], clears: [CWE-22]}
+    sinks:
+      CWE-89:
+        - {match: [.execute, .executemany, .executescript, .raw], args: [0]}
+      CWE-78:
+        - {match: [os.system, os.popen, subprocess.getoutput, subprocess.getstatusoutput], args: [0]}
+        - match: [subprocess.run, subprocess.call, subprocess.check_call, subprocess.check_output, subprocess.Popen]
+          args: [0]
+          requires_kw: {shell: "true"}
+      CWE-22:
+        - {match: [open, os.remove, os.unlink, os.listdir, os.makedirs, os.rmdir, shutil.copy, shutil.move, shutil.rmtree, send_file, send_from_directory], args: [0]}
+      CWE-502:
+        - {match: [pickle.loads, pickle.load, cPickle.loads, marshal.loads, dill.loads, jsonpickle.decode, shelve.open, yaml.unsafe_load, yaml.full_load], args: [0]}
+        - match: [yaml.load]
+          args: [0]
+          unless_kw: {Loader: [SafeLoader, CSafeLoader], loader: [SafeLoader, CSafeLoader]}
+      CWE-95:
+        - {match: [eval, exec], args: [0]}
+
+  javascript:
+    sources:
+      - req.query
+      - req.body
+      - req.params
+      - req.headers
+      - req.cookies
+      - req.files
+      - req.file
+      - req.url
+      - req.originalUrl
+      - req.get
+      - req.header
+      - req.param
+      - request.query
+      - request.body
+      - request.params
+      - ctx.query
+      - ctx.request.body
+      - process.argv
+    sanitizers:
+      - {match: [parseInt, parseFloat, Number, Boolean], clears: all}
+      - {match: [path.basename, shellEscape, shell-escape], clears: [CWE-78, CWE-22]}
+    sinks:
+      CWE-89:
+        - {match: [.query, .execute, .raw], args: [0]}
+      CWE-78:
+        - {match: [child_process.exec, child_process.execSync, exec, execSync], args: [0]}
+      CWE-22:
+        - {match: [fs.readFile, fs.readFileSync, fs.writeFile, fs.writeFileSync, fs.createReadStream, fs.createWriteStream, fs.unlink, fs.unlinkSync, fs.readdir, fs.readdirSync, .sendFile, .download], args: [0]}
+      CWE-502:
+        - {match: [.unserialize, serialize.unserialize], args: [0]}
+      CWE-95:
+        - {match: [eval, Function, vm.runInThisContext, vm.runInNewContext, mathjs.eval, mathjs.evaluate, math.eval, math.evaluate], args: [0]}
+
+secrets:
+  name_hints: [password, passwd, pwd, secret, api_key, apikey, access_key, private_key, auth_token, access_token, client_secret, token]
+  min_length: 4
+  # names that mean the value is a message or pattern, not a credential ("invalidPasswordErrorMessage")
+  name_ignore_hints: [message, error, msg, label, hint, placeholder, prompt, title, description, regex, pattern, format]
+  placeholders: [changeme, password, secret, token, test, example, dummy, todo, "none", "null", xxx, xxxx, "your_api_key", "your-api-key", "<password>", redacted]

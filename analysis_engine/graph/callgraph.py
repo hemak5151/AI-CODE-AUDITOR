@@ -32,7 +32,7 @@ def node_id(path: str, qualified_name: str) -> str:
     return f"{path}::{qualified_name}"
 
 
-class _Resolver:
+class CallResolver:
     def __init__(self, files: list[FileStructure]):
         self.files = {f.file_path: f for f in files}
         index = ModuleIndex(files)
@@ -170,7 +170,7 @@ def _add_edge(graph: nx.DiGraph, a: str, b: str, line: int) -> None:
 
 
 def build_call_graph(files: list[FileStructure]) -> nx.DiGraph:
-    resolver = _Resolver(files)
+    resolver = CallResolver(files)
     graph = nx.DiGraph()
     stats: Counter = Counter()
 

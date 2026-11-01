@@ -1,0 +1,41 @@
+# Deprecated or removed APIs. match: exact dotted name (after import aliases are
+# expanded) or ".name" for any receiver. kind: module | call | attribute.
+version: 1
+languages:
+  python:
+    - {kind: module, match: imp, since: "3.4", removed: "3.12", replacement: importlib}
+    - {kind: module, match: distutils, since: "3.10", removed: "3.12", replacement: "setuptools / sysconfig"}
+    - {kind: module, match: asyncore, since: "3.6", removed: "3.12", replacement: asyncio}
+    - {kind: module, match: asynchat, since: "3.6", removed: "3.12", replacement: asyncio}
+    - {kind: module, match: cgi, since: "3.11", removed: "3.13", replacement: "urllib.parse / email / a web framework"}
+    - {kind: module, match: telnetlib, since: "3.11", removed: "3.13", replacement: "telnetlib3 or a socket library"}
+    - {kind: module, match: pipes, since: "3.11", removed: "3.13", replacement: "subprocess / shlex.quote"}
+    - {kind: call, match: datetime.datetime.utcnow, since: "3.12", replacement: "datetime.datetime.now(datetime.timezone.utc)"}
+    - {kind: call, match: datetime.datetime.utcfromtimestamp, since: "3.12", replacement: "datetime.datetime.fromtimestamp(ts, datetime.timezone.utc)"}
+    - {kind: call, match: inspect.getargspec, since: "3.0", removed: "3.11", replacement: inspect.getfullargspec}
+    - {kind: call, match: time.clock, since: "3.3", removed: "3.8", replacement: "time.perf_counter / time.process_time"}
+    - {kind: call, match: base64.encodestring, since: "3.1", removed: "3.9", replacement: base64.encodebytes}
+    - {kind: call, match: base64.decodestring, since: "3.1", removed: "3.9", replacement: base64.decodebytes}
+    - {kind: call, match: os.popen, since: "2.6", replacement: subprocess.run}
+    - {kind: call, match: logging.warn, since: "3.3", replacement: logging.warning}
+    - {kind: call, match: .assertEquals, since: "3.2", removed: "3.12", replacement: .assertEqual}
+    - {kind: call, match: .assertNotEquals, since: "3.2", removed: "3.12", replacement: .assertNotEqual}
+    - {kind: call, match: .assertRegexpMatches, since: "3.2", removed: "3.12", replacement: .assertRegex}
+    - {kind: call, match: asyncio.get_event_loop, since: "3.10", replacement: "asyncio.run / asyncio.get_running_loop"}
+    - {kind: attribute, match: collections.Mapping, since: "3.3", removed: "3.10", replacement: collections.abc.Mapping}
+    - {kind: attribute, match: collections.MutableMapping, since: "3.3", removed: "3.10", replacement: collections.abc.MutableMapping}
+    - {kind: attribute, match: collections.Iterable, since: "3.3", removed: "3.10", replacement: collections.abc.Iterable}
+    - {kind: attribute, match: collections.Callable, since: "3.3", removed: "3.10", replacement: collections.abc.Callable}
+  javascript:
+    - {kind: call, match: fs.exists, since: "v1.0", replacement: "fs.access / fs.stat"}
+    - {kind: call, match: url.parse, since: "v11", replacement: "new URL()"}
+    - {kind: call, match: crypto.createCipher, since: "v10", removed: "v22", replacement: crypto.createCipheriv}
+    - {kind: call, match: crypto.createDecipher, since: "v10", removed: "v22", replacement: crypto.createDecipheriv}
+    - {kind: call, match: Buffer, since: "v6", replacement: "Buffer.from / Buffer.alloc"}
+    - {kind: call, match: util.isArray, since: "v4", replacement: Array.isArray}
+    - {kind: call, match: util.print, since: "v0.11", removed: "v12", replacement: console.log}
+    - {kind: call, match: .substr, since: "ES2015 (Annex B)", replacement: .slice}
+    - {kind: call, match: escape, since: "ES3", replacement: encodeURIComponent}
+    - {kind: call, match: unescape, since: "ES3", replacement: decodeURIComponent}
+    - {kind: call, match: process.binding, since: "v10", replacement: "public Node.js APIs"}
+    - {kind: module, match: sys, since: "v0.3", replacement: util}
