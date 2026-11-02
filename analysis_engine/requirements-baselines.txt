@@ -1,0 +1,4 @@
+# Baseline tools for configuration C1. Pinned so results are reproducible.
+# (Kept out of backend/requirements.txt on purpose: they are large and CI does not need them.)
+bandit==1.9.4
+semgrep==1.183.0
