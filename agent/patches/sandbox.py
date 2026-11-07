@@ -6,7 +6,7 @@ import uuid
 from pathlib import Path
 from typing import Literal, Sequence
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SandboxResult(BaseModel):
@@ -16,7 +16,7 @@ class SandboxResult(BaseModel):
     exit_code: int | None = None
     stdout: str = ""
     stderr: str = ""
-    errors: list[str] = []
+    errors: list[str] = Field(default_factory=list)
 
 
 class DockerSandboxRunner:
@@ -59,11 +59,15 @@ class DockerSandboxRunner:
         self.pids_limit = pids_limit
         self.timeout_seconds = timeout_seconds
 
-    def _remove_container(self, container_name: str) -> None:
-        """Attempt to remove a container left behind after a timeout."""
+    def _remove_container(self, container_name: str) -> bool:
+        """Remove a container left behind after a timeout.
+
+        Returns True only when Docker confirms successful removal
+        or the container is already absent.
+        """
 
         try:
-            subprocess.run(
+            result = subprocess.run(
                 [
                     "docker",
                     "rm",
@@ -75,8 +79,19 @@ class DockerSandboxRunner:
                 timeout=5,
                 check=False,
             )
+
+            if result.returncode == 0:
+                return True
+
+            details = (result.stderr or result.stdout).strip().lower()
+
+            if "no such container" in details:
+                return True
+
+            return False
+
         except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-            pass
+            return False
 
     def run(
         self,
@@ -198,7 +213,7 @@ class DockerSandboxRunner:
             )
 
         except subprocess.TimeoutExpired as exc:
-            self._remove_container(container_name)
+            cleanup_succeeded = self._remove_container(container_name)
 
             stdout = exc.stdout or ""
             stderr = exc.stderr or ""
@@ -209,19 +224,35 @@ class DockerSandboxRunner:
             if isinstance(stderr, bytes):
                 stderr = stderr.decode(errors="replace")
 
+            errors = [
+                f"Sandbox exceeded its {self.timeout_seconds}-second timeout."
+            ]
+
+            if not cleanup_succeeded:
+                errors.append(
+                    "Timed-out container cleanup could not be confirmed; "
+                    "manual inspection is required."
+                )
+
             return SandboxResult(
                 status="timeout",
                 stdout=stdout[-10000:],
                 stderr=stderr[-10000:],
-                errors=[
-                    f"Sandbox exceeded its {self.timeout_seconds}-second timeout."
-                ],
+                errors=errors,
             )
 
         except OSError as exc:
-            self._remove_container(container_name)
+            cleanup_succeeded = self._remove_container(container_name)
+
+            errors = [f"Docker execution error: {exc}"]
+
+            if not cleanup_succeeded:
+                errors.append(
+                    "Container cleanup could not be confirmed; "
+                    "manual inspection is required."
+                )
 
             return SandboxResult(
                 status="failed",
-                errors=[f"Docker execution error: {exc}"],
+                errors=errors,
             )
