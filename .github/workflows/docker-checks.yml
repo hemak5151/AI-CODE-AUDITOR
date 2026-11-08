@@ -1,0 +1,32 @@
+name: Docker checks
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/docker-checks.yml"
+      - ".github/scripts/**"
+jobs:
+  sandbox:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r backend/requirements.txt
+      - name: Dependency versions (for pinning)
+        run: pip show ollama langgraph | grep -E "^(Name|Version)"
+      - run: docker pull python:3.12-slim
+      - run: PYTHONPATH=. python .github/scripts/sandbox_smoke.py
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose up -d --build --no-deps backend frontend
+      - name: Wait for backend and frontend
+        run: |
+          for i in $(seq 1 40); do
+            curl -fs http://localhost:8000/api/health && curl -fsI http://localhost:3000 && exit 0
+            sleep 3
+          done
+          docker compose logs
+          exit 1
