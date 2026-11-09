@@ -1,9 +1,32 @@
 from pathlib import Path
-from typing import Dict, List
 
-from analysis_engine import analyze_python
-from analysis_engine.ingest import cleanup, from_git, from_zip, iter_source_files
+from analysis_engine.ingest import cleanup, from_git, from_zip
+from analysis_engine.integration import analyze_job
 from backend.app.services import db
+
+# Where each analysis stage sits on the 0-100 progress bar: (from %, to %, label).
+_STAGES = {
+    "parse": (10, 40, "Reading"),
+    "scan": (40, 55, "Scanning"),
+    "taint": (55, 95, "Tracing data flow"),
+}
+
+
+def _reporter(job_id: str):
+    """Progress callback for the analysis engine.
+
+    Only writes to the database when the percentage changes.
+    """
+    last = {"pct": -1}
+
+    def report(stage: str, done: int, total: int) -> None:
+        low, high, label = _STAGES.get(stage, (10, 95, stage))
+        pct = low + int((high - low) * done / max(total, 1))
+        if pct != last["pct"]:
+            last["pct"] = pct
+            db.update_job(job_id, progress=pct, message=f"{label}: {done}/{total} files")
+
+    return report
 
 
 def run_job(job_id: str, source_type: str, location: str) -> None:
@@ -14,29 +37,20 @@ def run_job(job_id: str, source_type: str, location: str) -> None:
         root = from_git(location) if source_type == "git" else from_zip(location)
 
         db.update_job(job_id, progress=10, message="Listing files")
-        files = list(iter_source_files(root))
-        total = len(files) or 1
+        # Whole-repo analysis: Python and JavaScript, data flow across files,
+        # secrets and deprecated APIs.
+        result = analyze_job(root, _reporter(job_id))
 
-        collected: List[dict] = []
-        sources: Dict[str, str] = {}
-        counter = 0
-        for i, (path, language) in enumerate(files, 1):
-            if language == "python":
-                rel = path.relative_to(root).as_posix()
-                text = path.read_text(encoding="utf-8", errors="replace")
-                found = analyze_python(text).findings
-                if found:
-                    sources[rel] = text  # keep the source so the UI can show the whole file
-                for f in found:
-                    counter += 1
-                    fixed = f.model_copy(update={"file_path": rel, "finding_id": f"{f.finding_id}-{counter}"})
-                    collected.append(fixed.model_dump(mode="json"))
-            db.update_job(job_id, progress=10 + int(85 * i / total), message=f"Scanned {i}/{len(files)} files")
-
-        db.add_findings(job_id, collected)
-        db.add_files(job_id, sources)
-        db.update_job(job_id, status="completed", progress=100, files_scanned=len(files),
-                      message=f"Done: {len(collected)} finding(s)")
+        db.add_findings(job_id, result.findings)
+        # Every file a finding refers to, so the UI can show it.
+        db.add_files(job_id, result.sources)
+        db.update_job(
+            job_id,
+            status="completed",
+            progress=100,
+            files_scanned=result.files_scanned,
+            message=f"Done: {len(result.findings)} finding(s)",
+        )
     except Exception as exc:  # report any failure on the job instead of crashing the worker
         db.update_job(job_id, status="failed", message="Failed", error=str(exc)[:500])
     finally:
