@@ -28,7 +28,7 @@ def run_bandit(stage: Path, work: Path, repeat: int = 1) -> dict:
     """Returns {"available", "version", "command", "raw", "findings", "runs", "returncode", "errors"}."""
     prefix = find_tool("bandit")
     if prefix is None:
-        return {"available": False, "errors": ["bandit is not installed (pip install bandit)"]}
+        return {"available": False, "errors": ["bandit is not installed (pip install bandit), or set BANDIT_CMD to its full path"]}
     out_json = work / "bandit_raw.json"
     cmd = prefix + ["-r", str(stage), "-f", "json", "-o", str(out_json), "-q"]
     runs, errors, code = [], [], 0

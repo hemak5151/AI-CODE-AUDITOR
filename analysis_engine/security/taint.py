@@ -22,8 +22,10 @@ import re
 from dataclasses import dataclass, field, replace
 from typing import Optional
 
+from analysis_engine.graph.callgraph import MODULE_NODE
 from analysis_engine.parser.models import FunctionInfo
-from analysis_engine.project import FUNC_TYPES, Project, is_test_or_example_path
+from analysis_engine.parser.treesitter_parser import nodes_of_types
+from analysis_engine.project import Project, is_test_or_example_path
 from analysis_engine.security.aliases import build_alias_map, canonical_name
 from analysis_engine.security.rule_loader import SinkSpec, TaintRules, load_taint_rules
 from shared.schemas import Finding, LineRange, Severity
@@ -40,6 +42,11 @@ ASSIGN = {"python": {"assignment", "augmented_assignment"},
 FOR = {"python": {"for_statement"}, "javascript": {"for_in_statement"}}
 CALLS = {"python": {"call"}, "javascript": {"call_expression", "new_expression"}}
 RETURNS = {"return_statement"}
+INTEREST = {  # the only node types the analysis looks at; Tree-Sitter finds them for us
+    "python": ("assignment", "augmented_assignment", "for_statement", "call", "return_statement", "as_pattern"),
+    "javascript": ("variable_declarator", "assignment_expression", "augmented_assignment_expression",
+                   "for_in_statement", "call_expression", "new_expression", "return_statement"),
+}
 FUNC_LITERALS = {"lambda", "arrow_function", "function_expression", "function", "generator_function"}
 TUPLE_LIKE = {"pattern_list", "tuple_pattern", "list_pattern", "tuple", "list", "array_pattern",
               "object_pattern", "pair_pattern", "rest_pattern", "list_splat_pattern", "parenthesized_expression",
@@ -142,12 +149,32 @@ class Unit:
     key: tuple          # (file, qualified_name); qualified_name "" means the file's top-level code
     file: str
     language: str
-    node: object
     info: Optional[FunctionInfo]
 
     @property
     def params(self) -> list:
         return self.info.params if self.info else []
+
+
+@dataclass
+class FileContext:
+    """Parsed view of one file, built when the file's units are analysed and dropped afterwards."""
+    path: str
+    tree: object      # keeps the tree, and so every node below, alive
+    unit_nodes: dict  # unit key -> function node
+    interest: dict    # unit key -> [nodes], document order
+
+
+_EMPTY = Summary()
+
+
+def _node_id(key: tuple) -> str:
+    return f"{key[0]}::{key[1] or MODULE_NODE}"
+
+
+def _key_of(node_id: str) -> tuple:
+    path, _, qn = node_id.partition("::")
+    return (path, "" if qn == MODULE_NODE else qn)
 
 
 @dataclass
@@ -201,65 +228,202 @@ def _source_matches(patterns: list, raw: Optional[str], canon: Optional[str]) ->
 
 # ------------------------------------------------------------------ analyzer
 class TaintAnalyzer:
-    def __init__(self, project: Project, rules: Optional[TaintRules] = None, entry_point_params: bool = True):
+    def __init__(self, project: Project, rules: Optional[TaintRules] = None, entry_point_params: bool = True,
+                 entry_point_methods: bool = False, progress=None):
         self.project = project
+        self.progress = progress
         self.rules = rules or load_taint_rules()
         self.entry_point_params = entry_point_params
-        self.aliases = {p: build_alias_map(f) for p, f in project.file_map.items()}
-        self.summaries: dict = {}
+        self.entry_point_methods = entry_point_methods
         self.units: dict = {}
-        self._known: dict = {}
+        self.summaries: dict = {}
+        self.results: dict = {}
+        self._aliases: dict = {}
+        self._canon: dict = {}
         self._resolved: dict = {}
-        for path, f in project.file_map.items():
-            if f.language not in self.rules.languages:
-                continue
-            tree = project.tree(path)
-            if tree is None:
-                continue
-            self.units[(path, "")] = Unit((path, ""), path, f.language, tree.root_node, None)
-            spans = set()
-            for fn in f.functions:
-                node = project.function_node(path, fn)
-                if node is not None:
-                    spans.add((fn.start_line, fn.end_line))
-                    self.units.setdefault((path, fn.qualified_name),
-                                          Unit((path, fn.qualified_name), path, f.language, node, fn))
-            self._known[path] = spans
+        self._match: dict = {}
+        self._ctx: Optional[FileContext] = None
+        self._sinks = {lang: self._index_sinks(r) for lang, r in self.rules.languages.items()}
+        for path in project.file_map:
+            self._add_file(path)
 
-    # -- public --------------------------------------------------------
+    # -- units and lookup tables ---------------------------------------
+    def _add_file(self, path: str) -> None:
+        f = self.project.file_map[path]
+        if f.language not in self.rules.languages:
+            return
+        self._aliases[path] = build_alias_map(f)
+        self.units[(path, "")] = Unit((path, ""), path, f.language, None)
+        for fn in f.functions:
+            self.units.setdefault((path, fn.qualified_name), Unit((path, fn.qualified_name), path, f.language, fn))
+
+    def _remove_file(self, path: str) -> None:
+        for key in [k for k in self.units if k[0] == path]:
+            for table in (self.units, self.results, self.summaries):
+                table.pop(key, None)
+        self._aliases.pop(path, None)
+        for key in [k for k in self._canon if k[0] == path]:
+            del self._canon[key]
+
+    @staticmethod
+    def _index_sinks(rules) -> tuple:
+        exact: dict = {}
+        suffix: dict = {}
+        for cwe, specs in rules.sinks.items():
+            for spec in specs:
+                for pattern in spec.match:
+                    if pattern.startswith("."):
+                        suffix.setdefault("." + pattern.rsplit(".", 1)[1], []).append((cwe, spec, pattern))
+                    else:
+                        exact.setdefault(pattern, []).append((cwe, spec))
+        return exact, suffix
+
+    def _sink_matches(self, language: str, raw: str, canon: str) -> list:
+        exact, suffix = self._sinks[language]
+        out, seen = [], set()
+        for name in ((raw,) if raw == canon else (raw, canon)):
+            candidates = list(exact.get(name, ()))
+            if "." in name:
+                candidates += [(c, s) for c, s, pattern in suffix.get("." + name.rsplit(".", 1)[1], ())
+                               if name.endswith(pattern)]
+            for cwe, spec in candidates:
+                if (cwe, id(spec)) not in seen:
+                    seen.add((cwe, id(spec)))
+                    out.append((cwe, spec))
+        return out
+
+    def _canonical(self, path: str, raw: str) -> str:
+        key = (path, raw)
+        if key not in self._canon:
+            self._canon[key] = canonical_name(raw, self._aliases[path])
+        return self._canon[key]
+
+    def _source_hit(self, language: str, raw: Optional[str], canon: Optional[str]):
+        key = ("source", language, raw, canon)
+        if key not in self._match:
+            self._match[key] = _source_matches(self.rules.languages[language].sources, raw, canon)
+        return self._match[key]
+
+    def _sanitizer_hit(self, language: str, raw: Optional[str], canon: Optional[str]):
+        key = ("sanitizer", language, raw, canon)
+        if key not in self._match:
+            found = None
+            for san in self.rules.languages[language].sanitizers:
+                if _name_matches(san.match, raw, canon):
+                    found = frozenset({"*"}) if san.clears == "all" else frozenset(san.clears)
+                    break
+            self._match[key] = found
+        return self._match[key]
+
+    # -- running -------------------------------------------------------
     def run(self) -> list:
-        results: dict = {}
-        for _ in range(MAX_ROUNDS):
-            results = {k: self._analyze(u) for k, u in self.units.items()}
-            new = {k: self._summarize(k, r) for k, r in results.items()}
-            stable = all(new[k].signature() == self.summaries.get(k, Summary()).signature() for k in new)
-            self.summaries = new
-            if stable:
+        self._iterate(set(self.units), report=True)
+        return self._collect()
+
+    def seeds_for_paths(self, paths) -> set:
+        """Units that call into the units of the given files, according to the current call graph."""
+        graph, out = self.project.call_graph, set()
+        for key in [k for k in self.units if k[0] in paths]:
+            nid = _node_id(key)
+            if nid in graph:
+                out.update(k for k in map(_key_of, graph.predecessors(nid)) if k in self.units)
+        return out
+
+    def update(self, paths, dependents_before: set) -> list:
+        """Re-analyse after `project.update_source` changed these files.
+
+        `dependents_before` = seeds_for_paths(paths) taken BEFORE the project changed, so callers of
+        functions that disappeared are not missed. Only the changed files and what depends on them are redone.
+        """
+        paths = set(paths)
+        for path in paths:
+            self._remove_file(path)
+        self._resolved.clear()
+        self._ctx = None
+        for path in paths:
+            if path in self.project.file_map:
+                self._add_file(path)
+        dirty = {k for k in self.units if k[0] in paths}
+        dirty |= {k for k in dependents_before if k in self.units}
+        dirty |= self.seeds_for_paths(paths)
+        self._iterate(dirty)
+        return self._collect()
+
+    def _iterate(self, dirty: set, report: bool = False) -> None:
+        """Analyse `dirty` units, then only the units whose callees' summaries changed, until stable."""
+        for round_no in range(MAX_ROUNDS):
+            by_file: dict = {}
+            for key in dirty:
+                if key in self.units:
+                    by_file.setdefault(key[0], []).append(key)
+            if not by_file:
                 break
-        return self._collect(results)
+            fresh: dict = {}
+            for done, path in enumerate(sorted(by_file), 1):  # file by file: each file is parsed once per round
+                ctx = self._file_context(path)
+                for key in sorted(by_file[path]):
+                    fresh[key] = self._analyze(self.units[key], ctx)
+                if report and round_no == 0 and self.progress:
+                    self.progress("taint", done, len(by_file))
+            summaries = {k: self._summarize(k, r) for k, r in fresh.items()}
+            changed = [k for k, s in summaries.items() if s.signature() != self.summaries.get(k, _EMPTY).signature()]
+            self.results.update(fresh)
+            self.summaries.update(summaries)
+            graph = self.project.call_graph
+            dirty = set()
+            for key in changed:
+                nid = _node_id(key)
+                if nid in graph:
+                    dirty.update(k for k in map(_key_of, graph.predecessors(nid)) if k in self.units)
+
+    def _file_context(self, path: str) -> FileContext:
+        if self._ctx is not None and self._ctx.path == path:
+            return self._ctx
+        project = self.project
+        language = project.file_map[path].language
+        tree = project.tree(path)
+        func_nodes = project.function_nodes(path)
+        unit_nodes = {(path, ""): tree.root_node}
+        for fn in project.file_map[path].functions:
+            key = (path, fn.qualified_name)
+            node = func_nodes.get((fn.start_line, fn.end_line))
+            if node is not None and key in self.units and key not in unit_nodes:
+                unit_nodes[key] = node
+        spans = sorted(((n.start_byte, n.end_byte, k) for k, n in unit_nodes.items() if k[1] != ""),
+                       key=lambda s: (s[0], -s[1]))
+        interest = {k: [] for k in unit_nodes}
+        stack, i = [], 0
+        for node in nodes_of_types(tree, language, INTEREST[language]):  # each node belongs to its innermost function
+            begin = node.start_byte
+            while i < len(spans) and spans[i][0] <= begin:
+                span = spans[i]
+                i += 1
+                while stack and span[0] >= stack[-1][1]:
+                    stack.pop()
+                stack.append(span)
+            while stack and begin >= stack[-1][1]:
+                stack.pop()
+            interest[stack[-1][2] if stack else (path, "")].append(node)
+        self._ctx = FileContext(path, tree, unit_nodes, interest)
+        return self._ctx
 
     # -- one unit ------------------------------------------------------
-    def _analyze(self, unit: Unit) -> UnitResult:
+    def _analyze(self, unit: Unit, ctx: FileContext) -> UnitResult:
         res = UnitResult()
+        root = ctx.unit_nodes.get(unit.key)
+        if root is None:
+            return res
         env: dict = {}
         for i, name in enumerate(unit.params):
             if IDENT.match(name):
                 env[name] = {("param", i): Taint(())}
-        known = self._known.get(unit.file, set())
-        kinds = FUNC_TYPES.get(unit.language, set())
-        stack = [unit.node]
-        while stack:
-            node = stack.pop()
-            if node is not unit.node and node.type in kinds and \
-                    (node.start_point[0] + 1, node.end_point[0] + 1) in known:
-                continue  # a named function: analysed as its own unit
+        for node in ctx.interest.get(unit.key, ()):
             try:
                 self._visit(node, unit, env, res)
             except RecursionError:
                 pass
-            stack.extend(reversed(node.children))
-        if unit.node.type == "arrow_function":  # expression-bodied arrow: the body is the return value
-            body = unit.node.child_by_field_name("body")
+        if root.type == "arrow_function":  # expression-bodied arrow: the body is the return value
+            body = root.child_by_field_name("body")
             if body is not None and body.type != "statement_block":
                 res.returns = _merge(res.returns, self._eval(body, unit, env))
         return res
@@ -341,9 +505,8 @@ class TaintAnalyzer:
         return _merge(*[self._eval(c, unit, env) for c in node.named_children if c.type != "comment"])
 
     def _source(self, raw: Optional[str], unit: Unit, node) -> TaintSet:
-        rules = self.rules.languages[unit.language]
-        canon = canonical_name(raw, self.aliases[unit.file]) if raw else None
-        hit = _source_matches(rules.sources, raw, canon)
+        canon = self._canonical(unit.file, raw) if raw else None
+        hit = self._source_hit(unit.language, raw, canon)
         if not hit:
             return {}
         line = node.start_point[0] + 1
@@ -398,21 +561,19 @@ class TaintAnalyzer:
     def _eval_call(self, node, unit: Unit, env: dict) -> TaintSet:
         fn, positional, keywords = self._call_parts(node)
         raw = _dotted(fn)
-        canon = canonical_name(raw, self.aliases[unit.file]) if raw else None
-        rules = self.rules.languages[unit.language]
-        src = _source_matches(rules.sources, raw, canon)
+        canon = self._canonical(unit.file, raw) if raw else None
+        src = self._source_hit(unit.language, raw, canon)
         if src:
             line = node.start_point[0] + 1
             return {("source", src, unit.file, line): Taint((Step(unit.file, line, "source", _snippet(node)),))}
         arg_sets = [self._eval(a, unit, env) for a in positional] + [self._eval(v, unit, env) for v in keywords.values()]
-        for san in rules.sanitizers:
-            if _name_matches(san.match, raw, canon):
-                clears = frozenset({"*"}) if san.clears == "all" else frozenset(san.clears)
-                step = Step(unit.file, node.start_point[0] + 1, "sanitizer", _snippet(node, 60))
-                return _extend(_merge(*arg_sets), step, clears)
+        clears = self._sanitizer_hit(unit.language, raw, canon)
+        if clears is not None:
+            step = Step(unit.file, node.start_point[0] + 1, "sanitizer", _snippet(node, 60))
+            return _extend(_merge(*arg_sets), step, clears)
         if raw:
             target, is_ctor = self._resolve(unit, raw)
-            summary = self.summaries.get(target) if target else None
+            summary = self.summaries.get(target, _EMPTY) if target in self.units else None
             if target and summary is not None:
                 out: TaintSet = dict(summary.returns_source)
                 offset = self._offset(target, raw, is_ctor, unit)
@@ -436,19 +597,17 @@ class TaintAnalyzer:
         raw = _dotted(fn)
         if raw is None:
             return
-        canon = canonical_name(raw, self.aliases[unit.file])
-        rules = self.rules.languages[unit.language]
+        canon = self._canonical(unit.file, raw)
         arg_sets = [self._eval(a, unit, env) for a in positional]
         kw_sets = {k: self._eval(v, unit, env) for k, v in keywords.items()}
         line = node.start_point[0] + 1
-        for cwe, specs in rules.sinks.items():
-            for spec in specs:
-                if not _name_matches(spec.match, raw, canon) or not self._kw_ok(spec, keywords):
-                    continue
-                idxs = range(len(positional)) if spec.args == "all" else spec.args
-                taints = _merge(*[arg_sets[i] for i in idxs if i < len(positional)])
-                if taints:
-                    res.sink_hits.append(SinkHit(cwe, canon if canon != raw else raw, line, taints))
+        for cwe, spec in self._sink_matches(unit.language, raw, canon):
+            if not self._kw_ok(spec, keywords):
+                continue
+            idxs = range(len(positional)) if spec.args == "all" else spec.args
+            taints = _merge(*[arg_sets[i] for i in idxs if i < len(positional)])
+            if taints:
+                res.sink_hits.append(SinkHit(cwe, canon if canon != raw else raw, line, taints))
         target, is_ctor = self._resolve(unit, raw)
         if target and target in self.units:
             offset = self._offset(target, raw, is_ctor, unit)
@@ -509,7 +668,7 @@ class TaintAnalyzer:
                 s.returns_source[origin] = t
         return s
 
-    def _collect(self, results: dict) -> list:
+    def _collect(self) -> list:
         flows: dict = {}
 
         def keep(flow: Flow) -> None:
@@ -517,7 +676,8 @@ class TaintAnalyzer:
             if ident not in flows or len(flow.steps) < len(flows[ident].steps):
                 flows[ident] = flow
 
-        for key, res in results.items():
+        for key in sorted(self.results):
+            res = self.results[key]
             unit = self.units[key]
             for hit in res.sink_hits:
                 for origin, t in hit.taints.items():
@@ -537,6 +697,7 @@ class TaintAnalyzer:
                                 keep(Flow(sf.cwe, sf.sink_name, sf.file, sf.line, sf.unit, origin[1], origin[2],
                                           origin[3], _cap(t.path + (call_step,) + sf.steps), True, False))
             if self.entry_point_params and unit.info is not None and not is_test_or_example_path(unit.file) and \
+                    (self.entry_point_methods or "." not in unit.info.qualified_name) and \
                     self.project.is_entry_point(unit.file, unit.info.qualified_name):
                 for idx, sfs in self.summaries[key].param_sinks.items():
                     name = unit.params[idx] if idx < len(unit.params) else ""
@@ -587,5 +748,6 @@ def flow_to_finding(flow: Flow, rules: TaintRules, project: Project) -> Finding:
         suggested_remediation=info.remediation)
 
 
-def find_taint_flows(project: Project, rules: Optional[TaintRules] = None, entry_point_params: bool = True) -> list:
-    return TaintAnalyzer(project, rules, entry_point_params).run()
+def find_taint_flows(project: Project, rules: Optional[TaintRules] = None, entry_point_params: bool = True,
+                     entry_point_methods: bool = False) -> list:
+    return TaintAnalyzer(project, rules, entry_point_params, entry_point_methods).run()

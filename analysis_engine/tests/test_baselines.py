@@ -166,3 +166,43 @@ def test_semgrep_end_to_end_with_pinned_rules(tmp_path):
     rows = [json.loads(l) for l in (tmp_path / "out" / "c1_findings.jsonl").read_text().splitlines()]
     assert {r["file_path"] for r in rows} == {"app.py", "tests/test_app.py"}
     assert all(r["cwe_id"] in SCOPE_CWES for r in rows) and any(r["cwe_id"] == "CWE-78" for r in rows)
+
+
+# ---------------------------------------------------------------- tools in their own environment
+def test_tool_location_can_be_set_with_an_environment_variable(tmp_path, monkeypatch):
+    from analysis_engine.baselines.common import find_tool
+    fake = tmp_path / "my tools" / "bandit.exe"
+    fake.parent.mkdir()
+    fake.write_text("")
+    monkeypatch.setenv("BANDIT_CMD", f'"{fake}"')            # quoted path with a space, as on Windows
+    assert find_tool("bandit") == [str(fake)]
+    monkeypatch.setenv("BANDIT_CMD", str(tmp_path / "missing.exe"))
+    assert find_tool("bandit") is None                        # a wrong path is "not installed", never a crash
+    monkeypatch.delenv("BANDIT_CMD")
+    assert find_tool("bandit") == (find_tool("bandit"))       # falls back to PATH / python -m
+
+
+def test_a_wrong_tool_path_is_reported_in_the_results(tmp_path, monkeypatch):
+    monkeypatch.setenv("BANDIT_CMD", str(tmp_path / "nope.exe"))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "a.py").write_text("x = 1\n")
+    meta = run_baselines(str(repo), str(tmp_path / "out"), tools=("bandit",))
+    err = meta["tools"]["bandit"]["errors"][0]
+    assert meta["tools"]["bandit"]["available"] is False and "BANDIT_CMD" in err
+
+
+def test_a_tool_in_its_own_environment_gets_its_own_folder_first_on_path(monkeypatch, tmp_path):
+    import subprocess
+    from analysis_engine.baselines.common import run_command
+    captured = {}
+
+    class Done:
+        returncode, stdout, stderr = 0, "", ""
+
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: (captured.update(env=kw["env"]), Done())[1])
+    exe = tmp_path / "tools" / "Scripts" / "semgrep.exe"
+    run_command([str(exe), "--version"])
+    assert captured["env"]["PATH"].split(os.pathsep)[0] == str(exe.parent)
+    run_command(["semgrep", "--version"])  # a bare command name leaves PATH alone
+    assert captured["env"]["PATH"].split(os.pathsep)[0] != str(exe.parent)

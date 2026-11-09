@@ -36,6 +36,7 @@ class LanguageRules(BaseModel):
 
 class SecretRules(BaseModel):
     name_hints: list[str]
+    weak_name_hints: list[str] = Field(default_factory=list)
     min_length: int = 4
     name_ignore_hints: list[str] = Field(default_factory=list)
     placeholders: list[str] = Field(default_factory=list)
@@ -43,6 +44,8 @@ class SecretRules(BaseModel):
 
 class TaintRules(BaseModel):
     version: int
+    risky_call_cwes: list[str] = Field(default_factory=list)
+    risky_call_confidence_factor: float = 0.55
     cwes: dict[str, CweInfo]
     languages: dict[str, LanguageRules]
     secrets: SecretRules

@@ -4,7 +4,7 @@ import hashlib
 import re
 from typing import Optional
 
-from analysis_engine.parser.treesitter_parser import walk
+from analysis_engine.parser.treesitter_parser import nodes_of_types
 from analysis_engine.project import Project, is_test_or_example_path
 from analysis_engine.security.rule_loader import TaintRules, load_taint_rules
 from shared.schemas import Finding, LineRange, Severity
@@ -16,6 +16,7 @@ TOKEN_FORMATS = [
     ("Slack token", re.compile(r"\bxox[abprs]-[A-Za-z0-9-]{10,}\b")),
 ]
 SKIP_VALUE = re.compile(r"^(\$\{.*\}|\{\{.*\}\}|<.*>|%\(.*\)s|\$[A-Z_]+)$")
+TEMPLATE = re.compile(r"%\(|%[sd]|\{[^}]*\}")
 STRING_NODES = {"string", "template_string"}
 PAIRS = {"python": ("assignment", "keyword_argument", "pair"),
          "javascript": ("variable_declarator", "assignment_expression", "pair")}
@@ -45,6 +46,19 @@ def _last_name(node) -> Optional[str]:
     return None
 
 
+def looks_like_secret(value: str) -> bool:
+    """For weakly-named variables (e.g. `token`): only long values with mixed characters qualify."""
+    if len(value) < 12 or " " in value:
+        return False
+    classes = sum([any(c.islower() for c in value), any(c.isupper() for c in value), any(c.isdigit() for c in value),
+                   any(not c.isalnum() and c not in "_-" for c in value)])
+    return classes >= 3 or (classes >= 2 and len(value) >= 20)
+
+
+def _is_template_or_sentence(value: str) -> bool:
+    return bool(TEMPLATE.search(value)) or value.count(" ") >= 2 or "\n" in value
+
+
 def _make(file: str, line: int, label: str, severity: Severity, confidence: float, code: str, kind: str) -> Finding:
     if is_test_or_example_path(file):  # credentials in tests and examples are usually fakes
         severity = Severity.MEDIUM if severity == Severity.HIGH else Severity.LOW
@@ -58,13 +72,16 @@ def _make(file: str, line: int, label: str, severity: Severity, confidence: floa
         source="secret-scan", suggested_remediation="Load secrets from environment variables or a secret manager and rotate the exposed value.")
 
 
-def find_hardcoded_secrets(project: Project, rules: Optional[TaintRules] = None) -> list:
+def find_hardcoded_secrets(project: Project, rules: Optional[TaintRules] = None, paths=None,
+                           include_tests: bool = False) -> list:
     rules = rules or load_taint_rules()
-    hints = [h.lower() for h in rules.secrets.name_hints]
+    strong = [h.lower() for h in rules.secrets.name_hints]
+    weak = [h.lower() for h in rules.secrets.weak_name_hints]
     ignore = [h.lower() for h in rules.secrets.name_ignore_hints]
     placeholders = {p.lower() for p in rules.secrets.placeholders}
     findings: dict = {}
-    for path, f in project.file_map.items():
+    for path in (sorted(project.file_map) if paths is None else [p for p in paths if p in project.file_map]):
+        f = project.file_map[path]
         pair_types = PAIRS.get(f.language)
         lines = project.lines(path)
         for n, text in enumerate(lines, 1):  # known token formats, anywhere
@@ -75,9 +92,9 @@ def find_hardcoded_secrets(project: Project, rules: Optional[TaintRules] = None)
         tree = project.tree(path)
         if tree is None or pair_types is None:
             continue
-        for node in walk(tree.root_node):
-            if node.type not in pair_types:
-                continue
+        if not include_tests and is_test_or_example_path(path):
+            continue  # fake credentials in tests/examples are normal; known token formats were already checked above
+        for node in nodes_of_types(tree, f.language, pair_types):
             if node.type == "pair":
                 name_node, value_node = node.child_by_field_name("key"), node.child_by_field_name("value")
             elif node.type == "keyword_argument":
@@ -90,9 +107,13 @@ def find_hardcoded_secrets(project: Project, rules: Optional[TaintRules] = None)
             if not name or value is None:
                 continue
             low = name.lower()
-            if not any(h in low for h in hints) or any(i in low for i in ignore):
+            is_strong, is_weak = any(h in low for h in strong), any(h in low for h in weak)
+            if not (is_strong or is_weak) or any(i in low for i in ignore):
                 continue
-            if len(value) < rules.secrets.min_length or value.lower() in placeholders or SKIP_VALUE.match(value):
+            if len(value) < rules.secrets.min_length or value.lower() in placeholders or SKIP_VALUE.match(value) \
+                    or _is_template_or_sentence(value):
+                continue
+            if not is_strong and not looks_like_secret(value):
                 continue
             line = node.start_point[0] + 1
             if (path, line) in findings:

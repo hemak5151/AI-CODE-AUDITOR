@@ -3,13 +3,19 @@
 parse_code() returns simple name lists. For full structure (docstrings,
 params, methods) use analysis_engine.parser.structure.extract_structure().
 """
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
 import tree_sitter_javascript as tsjs
 import tree_sitter_python as tspy
-from tree_sitter import Language, Parser
+from tree_sitter import Language, Parser, Query
+
+try:  # tree-sitter >= 0.25 runs queries through a cursor object
+    from tree_sitter import QueryCursor
+except ImportError:  # pragma: no cover - older releases
+    QueryCursor = None
 
 _LANGUAGES = {
     "python": Language(tspy.language()),
@@ -22,7 +28,17 @@ try:  # Java is optional: a missing package must not break Python/JS parsing
 except ImportError:  # pragma: no cover
     pass
 
-_PARSERS = {name: Parser(lang) for name, lang in _LANGUAGES.items()}
+_local = threading.local()      # a Tree-Sitter Parser must not be shared between threads, so each thread gets its own
+_query_lock = threading.Lock()
+
+
+def _parser_for(language: str) -> Optional[Parser]:
+    parsers = getattr(_local, "parsers", None)
+    if parsers is None:
+        parsers = _local.parsers = {}
+    if language not in parsers and language in _LANGUAGES:
+        parsers[language] = Parser(_LANGUAGES[language])
+    return parsers.get(language)
 
 EXT_TO_LANGUAGE = {
     ".py": "python",
@@ -58,8 +74,44 @@ def detect_language(path: str, source: Optional[str] = None) -> Optional[str]:
 
 def parse_tree(source: str, language: str):
     """Return a Tree-Sitter tree, or None if the language is not available."""
-    parser = _PARSERS.get(language)
+    parser = _parser_for(language)
     return parser.parse(source.encode("utf-8")) if parser else None
+
+
+_QUERIES: dict = {}
+
+
+def node_query(language: str, types) -> Optional[object]:
+    """A compiled query matching every node whose type is in `types` (types the grammar lacks are skipped)."""
+    key = (language, tuple(types))
+    with _query_lock:
+        if key not in _QUERIES:
+            _QUERIES[key] = _compile_query(language, types)
+    return _QUERIES[key]
+
+
+def _compile_query(language: str, types) -> Optional[object]:
+    lang = _LANGUAGES.get(language)
+    # the method was renamed between releases (id_for_node_type -> id_for_node_kind)
+    lookup = getattr(lang, "id_for_node_kind", None) or getattr(lang, "id_for_node_type", None)
+    valid = [t for t in types if lang is not None and (lookup is None or lookup(t, True))]
+    if not valid:
+        return None
+    source = "[" + " ".join(f"({t})" for t in valid) + "] @n"
+    try:
+        return Query(lang, source)
+    except TypeError:  # pragma: no cover - older releases
+        return lang.query(source)
+
+
+def nodes_of_types(tree, language: str, types) -> list:
+    """All nodes of the given types, in document order (parents before children). Runs inside Tree-Sitter."""
+    query = node_query(language, types)
+    if query is None or tree is None:
+        return []
+    caps = QueryCursor(query).captures(tree.root_node) if QueryCursor else query.captures(tree.root_node)
+    nodes = caps.get("n", []) if isinstance(caps, dict) else [n for n, _ in caps]
+    return sorted(nodes, key=lambda n: (n.start_byte, -n.end_byte))
 
 
 def _text(node) -> str:

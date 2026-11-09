@@ -69,10 +69,11 @@ def _measure(node, language: str, known: set) -> tuple:
     return cyclomatic, deepest
 
 
-def compute_metrics(project: Project, thresholds: Optional[dict] = None) -> list:
+def compute_metrics(project: Project, thresholds: Optional[dict] = None, paths=None) -> list:
     limits = {**THRESHOLDS, **(thresholds or {})}
     out = []
-    for path, f in project.file_map.items():
+    for path in (sorted(project.file_map) if paths is None else [p for p in paths if p in project.file_map]):
+        f = project.file_map[path]
         if f.language not in DECISIONS:
             continue
         known = {(fn.start_line, fn.end_line) for fn in f.functions}

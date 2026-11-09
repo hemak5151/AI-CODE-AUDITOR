@@ -2,7 +2,7 @@
 import hashlib
 from typing import Optional
 
-from analysis_engine.parser.treesitter_parser import walk
+from analysis_engine.parser.treesitter_parser import nodes_of_types
 from analysis_engine.project import Project
 from analysis_engine.security.aliases import build_alias_map, canonical_name
 from analysis_engine.security.rule_loader import DeprecatedItem, DeprecatedRules, load_deprecated_rules
@@ -29,10 +29,11 @@ def _finding(path: str, line: int, code: str, item: DeprecatedItem) -> Finding:
         source="deprecated-api", suggested_remediation=f"Replace {name} with {item.replacement}.")
 
 
-def find_deprecated_apis(project: Project, rules: Optional[DeprecatedRules] = None) -> list:
+def find_deprecated_apis(project: Project, rules: Optional[DeprecatedRules] = None, paths=None) -> list:
     rules = rules or load_deprecated_rules()
     out: dict = {}
-    for path, f in project.file_map.items():
+    for path in (sorted(project.file_map) if paths is None else [p for p in paths if p in project.file_map]):
+        f = project.file_map[path]
         items = rules.languages.get(f.language, [])
         if not items:
             continue
@@ -55,12 +56,12 @@ def find_deprecated_apis(project: Project, rules: Optional[DeprecatedRules] = No
                 if _matches(item, call.name, canon):
                     hit(call.line, item)
         attr_items = [i for i in items if i.kind == "attribute"]
-        if attr_items and project.tree(path) is not None:  # attribute references that are not calls
-            for node in walk(project.tree(path).root_node):
-                if node.type in DOTTED_NODES:
-                    raw = node.text.decode("utf-8", errors="replace")
-                    canon = canonical_name(raw, aliases)
-                    for item in attr_items:
-                        if item.match in (raw, canon):
-                            hit(node.start_point[0] + 1, item)
+        text = project.sources[path]
+        if attr_items and any(i.match.rsplit(".", 1)[-1] in text for i in attr_items):  # cheap precheck
+            for node in nodes_of_types(project.tree(path), f.language, tuple(DOTTED_NODES)):  # non-call references
+                raw = node.text.decode("utf-8", errors="replace")
+                canon = canonical_name(raw, aliases)
+                for item in attr_items:
+                    if item.match in (raw, canon):
+                        hit(node.start_point[0] + 1, item)
     return sorted(out.values(), key=lambda x: (x.file_path, x.line_number, x.finding_id))

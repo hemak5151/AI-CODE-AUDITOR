@@ -49,3 +49,10 @@ def test_parse_repo_summary(tmp_path):
     assert result["summary"]["files"] == 3
     assert result["summary"]["with_errors"] == 1
     assert result["summary"]["by_language"] == {"python": 2, "javascript": 1}
+
+
+def test_vendored_and_minified_code_is_skipped(tmp_path):
+    for rel in ("src/app.js", "vendor/lib.js", "third_party/x.py", "web/vendor/y.js", "web/app.min.js", "src/ok.py"):
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text("x\n")
+    assert sorted(p.relative_to(tmp_path).as_posix() for p, _ in iter_source_files(tmp_path)) == ["src/app.js", "src/ok.py"]

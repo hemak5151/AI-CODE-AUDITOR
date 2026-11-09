@@ -13,7 +13,7 @@ from analysis_engine.parser.treesitter_parser import EXT_TO_LANGUAGE
 IGNORE_DIRS = {
     "node_modules", "venv", ".venv", "env", "build", "dist", "__pycache__",
     ".git", ".idea", ".vscode", ".mypy_cache", ".pytest_cache", "site-packages",
-    ".next", "coverage",
+    ".next", "coverage", "vendor", "third_party",
 }
 MAX_FILE_BYTES = 1_000_000  # skip huge or minified files
 
@@ -43,6 +43,8 @@ def iter_source_files(root: Path) -> Iterator[tuple[Path, str]]:
         for name in filenames:
             path = Path(dirpath) / name
             language = EXT_TO_LANGUAGE.get(path.suffix.lower())
+            if path.name.endswith((".min.js", ".min.mjs")):
+                continue  # minified bundles are not the project's own code
             if language and path.stat().st_size <= MAX_FILE_BYTES:
                 yield path, language
 

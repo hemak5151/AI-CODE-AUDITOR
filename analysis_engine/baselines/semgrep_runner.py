@@ -76,7 +76,7 @@ def run_semgrep(stage: Path, work: Path, rules_dir: Path, rule_dirs=("python", "
                 jobs: int = 1) -> dict:
     prefix = find_tool("semgrep")
     if prefix is None:
-        return {"available": False, "errors": ["semgrep is not installed (pip install semgrep)"]}
+        return {"available": False, "errors": ["semgrep is not installed (pip install semgrep), or set SEMGREP_CMD to its full path"]}
     out_json = work / "semgrep_raw.json"
     cmd = prefix + ["scan"]
     for d in rule_dirs:

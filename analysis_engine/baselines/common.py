@@ -2,6 +2,7 @@
 import hashlib
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -37,7 +38,15 @@ def tool_env() -> dict:
 
 
 def find_tool(name: str) -> Optional[list]:
-    """Command prefix for a tool installed in the current environment, or None."""
+    """Command prefix for a tool, or None.
+
+    Order: the BANDIT_CMD / SEMGREP_CMD environment variable (lets the tools live in their own virtual
+    environment, away from the backend's packages), then PATH, then `python -m <tool>`.
+    """
+    override = os.environ.get(f"{name.upper()}_CMD")
+    if override:
+        parts = [t.strip('"') for t in shlex.split(override, posix=(os.name != "nt"))]
+        return parts if parts and (shutil.which(parts[0]) or os.path.exists(parts[0])) else None
     found = shutil.which(name)
     if found:
         return [found]
@@ -50,7 +59,12 @@ def find_tool(name: str) -> Optional[list]:
 def run_command(cmd: list, cwd: Optional[str] = None) -> tuple:
     """Run a command; return (returncode, stdout, stderr, wall_seconds)."""
     started = time.perf_counter()
-    proc = subprocess.run(cmd, cwd=cwd, env=tool_env(), capture_output=True, text=True,
+    env = tool_env()
+    if os.path.isabs(cmd[0]):
+        # A tool installed in its own environment must find ITS helper programs (Semgrep's launcher starts
+        # `pysemgrep` from PATH), not copies from whichever environment happens to be active.
+        env["PATH"] = str(Path(cmd[0]).parent) + os.pathsep + env.get("PATH", "")
+    proc = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True,
                           encoding="utf-8", errors="replace")
     return proc.returncode, proc.stdout, proc.stderr, time.perf_counter() - started
 
