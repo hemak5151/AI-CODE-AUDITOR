@@ -29,6 +29,24 @@ def is_constant(node) -> bool:
     return False
 
 
+def _is_safe_argument(node, cwe: str, lang_rules, aliases) -> bool:
+    """Constant, or built only from constants and sanitizer calls (int(), shlex.quote(), basename(), ...)."""
+    if is_constant(node):
+        return True
+    if node.type in COMBINERS:
+        return all(_is_safe_argument(c, cwe, lang_rules, aliases) for c in node.named_children if c.type != "comment")
+    if node.type in ("call", "call_expression"):
+        raw = _dotted(node.child_by_field_name("function"))
+        if raw in ("str", "repr", "bytes", "String"):  # plain wrappers: safe if what they wrap is safe
+            args = node.child_by_field_name("arguments")
+            return args is not None and all(_is_safe_argument(a, cwe, lang_rules, aliases) for a in args.named_children)
+        if raw:
+            canon = canonical_name(raw, aliases)
+            return any(_name_matches(s.match, raw, canon) and (s.clears == "all" or cwe in s.clears)
+                       for s in lang_rules.sanitizers)
+    return False
+
+
 def _arguments(call) -> tuple:
     args_node = call.child_by_field_name("arguments")
     positional, keywords = [], {}
@@ -70,7 +88,8 @@ def find_risky_patterns(project: Project, rules: Optional[TaintRules] = None, pa
                     if not _name_matches(spec.match, raw, canon) or not TaintAnalyzer._kw_ok(spec, keywords):
                         continue
                     idxs = range(len(positional)) if spec.args == "all" else spec.args
-                    dynamic = [positional[i] for i in idxs if i < len(positional) and not is_constant(positional[i])]
+                    dynamic = [positional[i] for i in idxs if i < len(positional)
+                               and not _is_safe_argument(positional[i], cwe, lang_rules, aliases)]
                     if not dynamic:
                         continue
                     line = call.start_point[0] + 1

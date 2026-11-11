@@ -81,3 +81,9 @@ def test_a_bare_exec_is_not_a_shell_command_unless_imported_from_child_process()
     assert got({"a.js": regexp_helper}) == []
     assert got({"a.js": "const cp = require('child_process');\ncp.exec(cmd);\n"}) == [("CWE-78", 2, "pattern-rule")]
     assert got({"a.js": "import { execSync } from 'child_process';\nexecSync(cmd);\n"}) == [("CWE-78", 2, "pattern-rule")]
+
+
+def test_sanitized_arguments_are_not_pattern_reported():
+    src = ("import os, shlex\nos.system('ping ' + shlex.quote(h))\nos.system('sleep ' + str(int(n)))\n"
+           "os.system('ping ' + h)\n")
+    assert got({"a.py": src}) == [("CWE-78", 4, "pattern-rule")]

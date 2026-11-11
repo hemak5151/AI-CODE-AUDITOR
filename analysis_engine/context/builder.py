@@ -21,6 +21,7 @@ from analysis_engine.project import Project
 from shared.schemas import ContextPackage
 
 MAX_LIST = 25
+ALL_SECTIONS = ("target", "taint", "callsites", "callees", "imports")
 
 
 def estimate_tokens(text: str) -> int:
@@ -57,7 +58,7 @@ def _imports(project: Project, path: str) -> list:
 
 
 def build_context(project: Project, target_id: str, flow=None, budget_tokens: int = 2000,
-                  count_tokens: Callable[[str], int] = estimate_tokens) -> ContextPackage:
+                  count_tokens: Callable[[str], int] = estimate_tokens, sections=ALL_SECTIONS) -> ContextPackage:
     graph = project.call_graph
     path, qn = _split(target_id)
     lines = project.lines(path)
@@ -106,12 +107,12 @@ def build_context(project: Project, target_id: str, flow=None, budget_tokens: in
     add(f"{title}\n{body}")
 
     # 2. taint path
-    if taint_path:
+    if taint_path and "taint" in sections:
         add("## Taint path (source -> sink)\n" + "\n".join(f"- {s}" for s in taint_path))
 
     # 3. call sites in callers
     site_blocks = []
-    for caller in callers:
+    for caller in (callers if "callsites" in sections else []):
         cpath, _ = _split(caller)
         for line in graph[caller][target_id].get("lines", [])[:2]:
             clines = project.lines(cpath)
@@ -124,7 +125,7 @@ def build_context(project: Project, target_id: str, flow=None, budget_tokens: in
 
     # 4. callee signatures
     sig_blocks = []
-    for callee in callees:
+    for callee in (callees if "callees" in sections else []):
         cpath, cqn = _split(callee)
         cinfo = next((f for f in project.file_map[cpath].functions if f.qualified_name == cqn), None)
         if cinfo is not None:
@@ -138,11 +139,13 @@ def build_context(project: Project, target_id: str, flow=None, budget_tokens: in
                 break
 
     # 5. imports
-    imports = _imports(project, path)
+    imports = _imports(project, path) if "imports" in sections else []
     if imports:
         text = "## Imports\n" + ", ".join(imports)
         if not add(text):
             add("## Imports\n" + ", ".join(imports[:8]) + ", ...")
 
-    return ContextPackage(target_function=target_id, callers=callers, callees=callees, imports=imports,
-                          taint_path=taint_path, token_trimmed_context="\n\n".join(parts))
+    return ContextPackage(target_function=target_id, callers=callers if "callsites" in sections else [],
+                          callees=callees if "callees" in sections else [], imports=imports,
+                          taint_path=taint_path if "taint" in sections else [],
+                          token_trimmed_context="\n\n".join(parts))
