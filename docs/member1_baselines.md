@@ -2,10 +2,22 @@
 
 C1 is the deterministic baseline: **Bandit** (Python) and **Semgrep Community Edition** (Python + JavaScript), normalized to the shared `Finding` schema. The same staged files are given to both tools, so they always scan an identical file set.
 
+## Install the tools in their own environment
+
+Semgrep pins `opentelemetry-api` to an older version than the backend's packages need, so installing both in one virtual environment makes pip warn about a conflict. Keep Semgrep and Bandit in a separate environment **outside the repo**, and tell the runner where they are:
+
+```
+python -m venv %USERPROFILE%\.venvs\ai-auditor-tools
+%USERPROFILE%\.venvs\ai-auditor-tools\Scripts\pip install -r analysis_engine\requirements-baselines.txt
+set SEMGREP_CMD=%USERPROFILE%\.venvs\ai-auditor-tools\Scripts\semgrep.exe
+set BANDIT_CMD=%USERPROFILE%\.venvs\ai-auditor-tools\Scripts\bandit.exe
+```
+
+(`set` lasts for the current Command Prompt window only.) If these variables are not set, the runner uses whatever is on `PATH`.
+
 ## Run it
 
 ```
-pip install -r analysis_engine/requirements-baselines.txt
 python -m analysis_engine.baselines <folder | repo.zip | git-url> --out baseline_out [--repeat 3] [--cwes scope]
 ```
 
