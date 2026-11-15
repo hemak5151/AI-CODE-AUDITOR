@@ -1,0 +1,744 @@
+{
+  "num_queries": 70,
+  "k": 3,
+  "recall_at_k": 1.0,
+  "mrr": 0.9643,
+  "results": [
+    {
+      "query": "eval untrusted input",
+      "expected_section": "Dynamic code execution",
+      "retrieved_sections": [
+        "Dynamic code execution",
+        "Command execution",
+        "SQL Injection"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "exec on user supplied data",
+      "expected_section": "Dynamic code execution",
+      "retrieved_sections": [
+        "Dynamic code execution",
+        "Command execution",
+        "Path Traversal"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "avoid evaluating arbitrary strings",
+      "expected_section": "Dynamic code execution",
+      "retrieved_sections": [
+        "Dynamic code execution",
+        "Command execution",
+        "Secrets"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "safer alternative to eval",
+      "expected_section": "Dynamic code execution",
+      "retrieved_sections": [
+        "Dynamic code execution",
+        "Unsafe Deserialization"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "execute a string as Python code",
+      "expected_section": "Dynamic code execution",
+      "retrieved_sections": [
+        "Dynamic code execution",
+        "Unsafe Deserialization",
+        "Secrets"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "prevent arbitrary code execution",
+      "expected_section": "Dynamic code execution",
+      "retrieved_sections": [
+        "Dynamic code execution",
+        "Command execution",
+        "Unsafe Deserialization"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "Python eval security issue",
+      "expected_section": "Dynamic code execution",
+      "retrieved_sections": [
+        "Dynamic code execution",
+        "Secrets",
+        "Unsafe Deserialization"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "user input interpreted as code",
+      "expected_section": "Dynamic code execution",
+      "retrieved_sections": [
+        "Dynamic code execution",
+        "Command execution",
+        "SQL Injection"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "avoid executing arbitrary expressions",
+      "expected_section": "Dynamic code execution",
+      "retrieved_sections": [
+        "Dynamic code execution",
+        "Command execution",
+        "Secrets"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "parse input rather than execute it",
+      "expected_section": "Dynamic code execution",
+      "retrieved_sections": [
+        "Dynamic code execution",
+        "Command execution",
+        "SQL Injection"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "shell=True subprocess commands",
+      "expected_section": "Command execution",
+      "retrieved_sections": [
+        "Command execution"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "avoid shell injection",
+      "expected_section": "Command execution",
+      "retrieved_sections": [
+        "Command execution",
+        "SQL Injection",
+        "Dynamic code execution"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "safe subprocess arguments",
+      "expected_section": "Command execution",
+      "retrieved_sections": [
+        "Command execution",
+        "Insecure File Handling"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "run external commands without a shell",
+      "expected_section": "Command execution",
+      "retrieved_sections": [
+        "Command execution",
+        "Path Traversal",
+        "Insecure File Handling"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "command injection vulnerability in Python",
+      "expected_section": "Command execution",
+      "retrieved_sections": [
+        "Command execution",
+        "SQL Injection",
+        "Secrets"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "use shell=False",
+      "expected_section": "Command execution",
+      "retrieved_sections": [
+        "Command execution",
+        "Secrets",
+        "SQL Injection"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "securely launch a system process",
+      "expected_section": "Command execution",
+      "retrieved_sections": [
+        "Command execution",
+        "Secrets",
+        "Insecure File Handling"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "shell command built from user input",
+      "expected_section": "Command execution",
+      "retrieved_sections": [
+        "Command execution",
+        "SQL Injection",
+        "Path Traversal"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "Python subprocess security risk",
+      "expected_section": "Command execution",
+      "retrieved_sections": [
+        "Command execution",
+        "Secrets",
+        "Unsafe Deserialization"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "prevent shell command injection",
+      "expected_section": "Command execution",
+      "retrieved_sections": [
+        "Command execution",
+        "SQL Injection"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "hardcoded passwords API keys tokens",
+      "expected_section": "Secrets",
+      "retrieved_sections": [
+        "Secrets"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "store credentials safely",
+      "expected_section": "Secrets",
+      "retrieved_sections": [
+        "Secrets",
+        "Insecure File Handling"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "remove passwords from source code",
+      "expected_section": "Secrets",
+      "retrieved_sections": [
+        "Dynamic code execution",
+        "Secrets",
+        "Command execution"
+      ],
+      "relevant_rank": 2,
+      "hit_at_k": true
+    },
+    {
+      "query": "use environment variables for secrets",
+      "expected_section": "Secrets",
+      "retrieved_sections": [
+        "Secrets",
+        "Command execution",
+        "SQL Injection"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "prevent API key leaks",
+      "expected_section": "Secrets",
+      "retrieved_sections": [
+        "Secrets"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "avoid committing access tokens",
+      "expected_section": "Secrets",
+      "retrieved_sections": [
+        "Secrets",
+        "SQL Injection",
+        "Insecure File Handling"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "password exposed in a Python file",
+      "expected_section": "Secrets",
+      "retrieved_sections": [
+        "Insecure File Handling",
+        "Secrets",
+        "Path Traversal"
+      ],
+      "relevant_rank": 2,
+      "hit_at_k": true
+    },
+    {
+      "query": "detect hardcoded authentication secrets",
+      "expected_section": "Secrets",
+      "retrieved_sections": [
+        "Secrets"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "where should application secrets be stored",
+      "expected_section": "Secrets",
+      "retrieved_sections": [
+        "Secrets",
+        "SQL Injection",
+        "Path Traversal"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "protect private API tokens",
+      "expected_section": "Secrets",
+      "retrieved_sections": [
+        "Secrets"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "SQL injection vulnerability",
+      "expected_section": "SQL Injection",
+      "retrieved_sections": [
+        "SQL Injection",
+        "Command execution"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "prevent SQL injection attacks",
+      "expected_section": "SQL Injection",
+      "retrieved_sections": [
+        "SQL Injection",
+        "Command execution"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "unsafe SQL query construction",
+      "expected_section": "SQL Injection",
+      "retrieved_sections": [
+        "SQL Injection",
+        "Unsafe Deserialization",
+        "Insecure File Handling"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "user input inserted into SQL query",
+      "expected_section": "SQL Injection",
+      "retrieved_sections": [
+        "SQL Injection",
+        "Command execution",
+        "Path Traversal"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "use parameterized SQL queries",
+      "expected_section": "SQL Injection",
+      "retrieved_sections": [
+        "SQL Injection",
+        "Command execution",
+        "Secrets"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "prepared statements for database security",
+      "expected_section": "SQL Injection",
+      "retrieved_sections": [
+        "SQL Injection",
+        "Secrets"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "SQL query built using string concatenation",
+      "expected_section": "SQL Injection",
+      "retrieved_sections": [
+        "SQL Injection",
+        "Unsafe Deserialization"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "attacker modifies database queries",
+      "expected_section": "SQL Injection",
+      "retrieved_sections": [
+        "SQL Injection",
+        "Secrets"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "secure database query practices",
+      "expected_section": "SQL Injection",
+      "retrieved_sections": [
+        "SQL Injection",
+        "Secrets"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "avoid formatting SQL with untrusted input",
+      "expected_section": "SQL Injection",
+      "retrieved_sections": [
+        "SQL Injection",
+        "Dynamic code execution",
+        "Command execution"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "path traversal vulnerability",
+      "expected_section": "Path Traversal",
+      "retrieved_sections": [
+        "Path Traversal"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "prevent directory traversal attacks",
+      "expected_section": "Path Traversal",
+      "retrieved_sections": [
+        "Path Traversal"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "user input controls file paths",
+      "expected_section": "Path Traversal",
+      "retrieved_sections": [
+        "Insecure File Handling",
+        "Path Traversal",
+        "Command execution"
+      ],
+      "relevant_rank": 2,
+      "hit_at_k": true
+    },
+    {
+      "query": "access files outside allowed directory",
+      "expected_section": "Path Traversal",
+      "retrieved_sections": [
+        "Path Traversal",
+        "Insecure File Handling",
+        "Secrets"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "validate user supplied file paths",
+      "expected_section": "Path Traversal",
+      "retrieved_sections": [
+        "Insecure File Handling",
+        "Path Traversal",
+        "Command execution"
+      ],
+      "relevant_rank": 2,
+      "hit_at_k": true
+    },
+    {
+      "query": "attack using ../ in a filename",
+      "expected_section": "Path Traversal",
+      "retrieved_sections": [
+        "Path Traversal",
+        "SQL Injection",
+        "Insecure File Handling"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "restrict file access to a directory",
+      "expected_section": "Path Traversal",
+      "retrieved_sections": [
+        "Path Traversal",
+        "Insecure File Handling",
+        "Secrets"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "unsafe file path supplied by a user",
+      "expected_section": "Path Traversal",
+      "retrieved_sections": [
+        "Path Traversal",
+        "Insecure File Handling",
+        "Unsafe Deserialization"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "resolve paths within an allowed folder",
+      "expected_section": "Path Traversal",
+      "retrieved_sections": [
+        "Path Traversal",
+        "Insecure File Handling"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "prevent unauthorized file access",
+      "expected_section": "Path Traversal",
+      "retrieved_sections": [
+        "Insecure File Handling",
+        "Path Traversal",
+        "Secrets"
+      ],
+      "relevant_rank": 2,
+      "hit_at_k": true
+    },
+    {
+      "query": "insecure file upload handling",
+      "expected_section": "Insecure File Handling",
+      "retrieved_sections": [
+        "Insecure File Handling",
+        "Path Traversal"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "validate uploaded file types",
+      "expected_section": "Insecure File Handling",
+      "retrieved_sections": [
+        "Insecure File Handling",
+        "Path Traversal",
+        "Unsafe Deserialization"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "malicious file upload security",
+      "expected_section": "Insecure File Handling",
+      "retrieved_sections": [
+        "Insecure File Handling",
+        "Path Traversal"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "restrict uploaded file sizes",
+      "expected_section": "Insecure File Handling",
+      "retrieved_sections": [
+        "Insecure File Handling",
+        "Path Traversal"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "generate safe filenames for uploads",
+      "expected_section": "Insecure File Handling",
+      "retrieved_sections": [
+        "Insecure File Handling",
+        "Command execution"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "avoid trusting user supplied filenames",
+      "expected_section": "Insecure File Handling",
+      "retrieved_sections": [
+        "Insecure File Handling",
+        "Command execution",
+        "SQL Injection"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "store uploads outside public directories",
+      "expected_section": "Insecure File Handling",
+      "retrieved_sections": [
+        "Insecure File Handling",
+        "Secrets",
+        "Path Traversal"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "unsafe file operations",
+      "expected_section": "Insecure File Handling",
+      "retrieved_sections": [
+        "Insecure File Handling",
+        "Unsafe Deserialization",
+        "Path Traversal"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "prevent unauthorized file uploads",
+      "expected_section": "Insecure File Handling",
+      "retrieved_sections": [
+        "Insecure File Handling",
+        "Path Traversal"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "securely process uploaded files",
+      "expected_section": "Insecure File Handling",
+      "retrieved_sections": [
+        "Insecure File Handling",
+        "Command execution",
+        "Secrets"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "unsafe pickle deserialization",
+      "expected_section": "Unsafe Deserialization",
+      "retrieved_sections": [
+        "Unsafe Deserialization",
+        "Insecure File Handling"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "never load untrusted pickle data",
+      "expected_section": "Unsafe Deserialization",
+      "retrieved_sections": [
+        "Unsafe Deserialization",
+        "Dynamic code execution",
+        "Command execution"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "pickle.loads security vulnerability",
+      "expected_section": "Unsafe Deserialization",
+      "retrieved_sections": [
+        "Unsafe Deserialization"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "deserialize untrusted user input",
+      "expected_section": "Unsafe Deserialization",
+      "retrieved_sections": [
+        "Unsafe Deserialization",
+        "Dynamic code execution",
+        "Command execution"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "arbitrary code execution through pickle",
+      "expected_section": "Unsafe Deserialization",
+      "retrieved_sections": [
+        "Unsafe Deserialization",
+        "Dynamic code execution",
+        "Command execution"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "use JSON instead of pickle for untrusted data",
+      "expected_section": "Unsafe Deserialization",
+      "retrieved_sections": [
+        "Unsafe Deserialization",
+        "Command execution",
+        "SQL Injection"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "safe handling of serialized data",
+      "expected_section": "Unsafe Deserialization",
+      "retrieved_sections": [
+        "Unsafe Deserialization",
+        "Insecure File Handling",
+        "Command execution"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "untrusted serialized Python objects",
+      "expected_section": "Unsafe Deserialization",
+      "retrieved_sections": [
+        "Unsafe Deserialization",
+        "Dynamic code execution",
+        "Command execution"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "validate data after deserialization",
+      "expected_section": "Unsafe Deserialization",
+      "retrieved_sections": [
+        "Unsafe Deserialization",
+        "Command execution",
+        "Path Traversal"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    },
+    {
+      "query": "prevent malicious pickle payloads",
+      "expected_section": "Unsafe Deserialization",
+      "retrieved_sections": [
+        "Unsafe Deserialization",
+        "Insecure File Handling"
+      ],
+      "relevant_rank": 1,
+      "hit_at_k": true
+    }
+  ]
+}
