@@ -8,7 +8,7 @@ from analysis_engine.baselines.common import (CONFIDENCE, DEFAULT_CONFIDENCE, SE
 
 
 def normalize_bandit(raw: dict, stage: Path) -> list:
-    findings = {}
+    findings: dict = {}
     for r in raw.get("results", []):
         file = rel_path(r["filename"], stage)
         cwes = parse_cwes((r.get("issue_cwe") or {}).get("id"))
@@ -19,7 +19,8 @@ def normalize_bandit(raw: dict, stage: Path) -> list:
         f = make_finding("bandit", test_id, cwes[0] if cwes else None, SEVERITY.get(r["issue_severity"], "low"),
                          CONFIDENCE.get(r["issue_confidence"], DEFAULT_CONFIDENCE), text, explanation, file,
                          r["line_number"], max(lines), stage)
-        f.line_range.start = min(min(lines), r["line_number"])
+        if f.line_range:
+            f.line_range.start = min(min(lines), r["line_number"])
         findings.setdefault(f.finding_id, f)
     return sort_findings(list(findings.values()))
 

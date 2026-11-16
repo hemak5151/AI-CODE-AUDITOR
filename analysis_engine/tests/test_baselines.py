@@ -131,7 +131,7 @@ def test_bandit_end_to_end(tmp_path):
     b = meta["tools"]["bandit"]
     assert b["available"] and b["errors"] == [] and b["files_scanned"] == 2 and b["lines_scanned"] == 12
     assert len(b["runs"]) == 2 and b["median_seconds_total"] > 0
-    rows = [json.loads(l) for l in (tmp_path / "out" / "c1_findings.jsonl").read_text().splitlines()]
+    rows = [json.loads(ln) for ln in (tmp_path / "out" / "c1_findings.jsonl").read_text().splitlines()]
     assert {r["file_path"] for r in rows} == {"app.py", "tests/test_app.py"}  # tests/ is scanned
     assert any(r["cwe_id"] == "CWE-78" and r["line_number"] == 6 for r in rows)
     for r in rows:
@@ -163,7 +163,7 @@ def test_semgrep_end_to_end_with_pinned_rules(tmp_path):
     s = meta["tools"]["semgrep"]
     assert s["available"] and s["errors"] == [] and s["rules_commit"] == s["rules_commit_pinned"]
     assert s["median_seconds_rule_loading"] is not None and s["median_seconds_scan"] is not None
-    rows = [json.loads(l) for l in (tmp_path / "out" / "c1_findings.jsonl").read_text().splitlines()]
+    rows = [json.loads(ln) for ln in (tmp_path / "out" / "c1_findings.jsonl").read_text().splitlines()]
     assert {r["file_path"] for r in rows} == {"app.py", "tests/test_app.py"}
     assert all(r["cwe_id"] in SCOPE_CWES for r in rows) and any(r["cwe_id"] == "CWE-78" for r in rows)
 

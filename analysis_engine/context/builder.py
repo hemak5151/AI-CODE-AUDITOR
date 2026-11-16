@@ -14,7 +14,7 @@ Token counts default to a fast estimate (characters / 4). Pass `count_tokens` to
 tokenizer, for example the one that matches the model being prompted.
 """
 import math
-from typing import Callable, Optional
+from typing import Callable
 
 from analysis_engine.graph.callgraph import MODULE_NODE
 from analysis_engine.project import Project
@@ -48,7 +48,7 @@ def target_for_line(project: Project, path: str, line: int) -> str:
 
 
 def _imports(project: Project, path: str) -> list:
-    out = set()
+    out: set = set()
     for imp in project.file_map[path].imports:
         if imp.names:
             out.update(f"{imp.module}.{n}" if not imp.module.endswith(".") else f"{imp.module}{n}" for n in imp.names)

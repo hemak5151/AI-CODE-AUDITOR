@@ -322,7 +322,7 @@ class TaintAnalyzer:
 
     def seeds_for_paths(self, paths) -> set:
         """Units that call into the units of the given files, according to the current call graph."""
-        graph, out = self.project.call_graph, set()
+        graph, out = self.project.call_graph, set()  # type: ignore[var-annotated]
         for key in [k for k in self.units if k[0] in paths]:
             nid = _node_id(key)
             if nid in graph:
@@ -391,8 +391,9 @@ class TaintAnalyzer:
                 unit_nodes[key] = node
         spans = sorted(((n.start_byte, n.end_byte, k) for k, n in unit_nodes.items() if k[1] != ""),
                        key=lambda s: (s[0], -s[1]))
-        interest = {k: [] for k in unit_nodes}
-        stack, i = [], 0
+        interest: dict = {k: [] for k in unit_nodes}
+        stack: list = []
+        i = 0
         for node in nodes_of_types(tree, language, INTEREST[language]):  # each node belongs to its innermost function
             begin = node.start_byte
             while i < len(spans) and spans[i][0] <= begin:

@@ -22,14 +22,13 @@ from typing import Optional
 from analysis_engine.context.builder import build_context, target_for_line
 from analysis_engine.graph.callgraph import MODULE_NODE
 from analysis_engine.ingest import from_git, from_zip
-from analysis_engine.metrics import FunctionMetrics, compute_metrics, smell_findings
+from analysis_engine.metrics import compute_metrics, smell_findings
 from analysis_engine.project import Project
 from analysis_engine.security.deprecated import find_deprecated_apis
 from analysis_engine.security.patterns import find_risky_patterns
 from analysis_engine.security.rule_loader import load_taint_rules
 from analysis_engine.security.secrets import find_hardcoded_secrets
 from analysis_engine.security.taint import TaintAnalyzer, flow_to_finding
-from shared.schemas import ContextPackage, Finding
 
 SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 

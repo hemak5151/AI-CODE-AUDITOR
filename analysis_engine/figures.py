@@ -7,7 +7,6 @@ from pathlib import Path
 
 import networkx as nx
 
-from analysis_engine.pipeline import AnalysisSession
 from analysis_engine.project import Project
 from analysis_engine.security.taint import find_taint_flows
 
@@ -43,7 +42,9 @@ def plot_taint_path(steps, stem: str, title: str = "") -> list:
         ax.add_patch(FancyArrowPatch((x1, y1 - 0.34), (x2, y2 + 0.34), arrowstyle="-|>", mutation_scale=10, color="#333", connectionstyle="arc3,rad=0.0"))
     for j, f in enumerate(files):
         ax.text(j * 3.6 + 1.65, 0.75, f, ha="center", fontsize=9, weight="bold")
-    ax.set_xlim(-0.2, 3.6 * len(files)); ax.set_ylim(-len(steps) + 0.4, 1.1); ax.axis("off")
+    ax.set_xlim(-0.2, 3.6 * len(files))
+    ax.set_ylim(-len(steps) + 0.4, 1.1)
+    ax.axis("off")
     if title:
         ax.set_title(title, fontsize=10)
     out = _save(fig, stem)
@@ -65,7 +66,7 @@ def plot_call_graph(graph: nx.DiGraph, focus: str, stem: str, depth: int = 2) ->
     rows: dict = {}
     for n in sorted(layer, key=lambda n: (layer[n], n)):
         rows.setdefault(layer[n], []).append(n)
-    pos = {n: (l * 3.0, -(i - (len(ns) - 1) / 2) * 0.9) for l, ns in rows.items() for i, n in enumerate(ns)}
+    pos = {n: (ln * 3.0, -(i - (len(ns) - 1) / 2) * 0.9) for ln, ns in rows.items() for i, n in enumerate(ns)}
     files = sorted({graph.nodes[n].get("file", "") for n in pos})
     palette = plt.get_cmap("tab10")
     fig, ax = plt.subplots(figsize=(2.6 * len(rows) + 1.5, 0.8 * max(len(v) for v in rows.values()) + 1.5))

@@ -11,6 +11,7 @@ python -m analysis_engine.figures <folder> --out figures                        
 python -m analysis_engine.baselines <folder> --out baseline_out                        # C1: Bandit + Semgrep
 python -m analysis_engine.ablation <folder> --out ablation_inputs.jsonl                # C2 / C3 inputs
 python -m analysis_engine.static_eval --out static_eval_out                            # labelled dev set, 3 tools
+python -m analysis_engine.reproduce --out repro_out [--tests] [--repos]                # re-create the paper numbers, PASS/FAIL
 ```
 In code: `analyze_job(root, progress)` (one call per backend job), `AnalysisSession` (incremental), `analyze_sources({...})`.
 Details: `docs/member1_context_api.md` (API) and `docs/member1_baselines.md` (baselines).

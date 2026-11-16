@@ -50,7 +50,7 @@ def _entry(project, target, flow, budget, sections):
 
 
 def build_ablation_inputs(project: Project, budget_tokens: int = 2000) -> list:
-    flows = {}
+    flows: dict = {}
     for flow in find_taint_flows(project):
         flows.setdefault(flow.sink_unit, flow)
     items = []

@@ -71,8 +71,8 @@ def run_command(cmd: list, cwd: Optional[str] = None) -> tuple:
 
 def tool_version(cmd_prefix: list) -> str:
     code, out, err, _ = run_command(cmd_prefix + ["--version"])
-    lines = [l.strip() for l in (out + "\n" + err).splitlines() if l.strip()]
-    first = next((l for l in lines if re.search(r"\d+\.\d+", l)), "unknown")
+    lines = [ln.strip() for ln in (out + "\n" + err).splitlines() if ln.strip()]
+    first = next((ln for ln in lines if re.search(r"\d+\.\d+", ln)), "unknown")
     m = re.search(r"\d+\.\d+(?:\.\d+)*", first)
     return m.group(0) if m else first
 

@@ -12,7 +12,7 @@ def build_alias_map(f: FileStructure) -> dict[str, str]:
     for imp in f.imports:
         if imp.module.startswith("."):
             continue
-        locals_for = lambda name: [l for l, i in imp.local_names.items() if i == name] or [name]  # noqa: E731
+        locals_for = lambda name: [ln for ln, i in imp.local_names.items() if i == name] or [name]  # noqa: E731
         if f.language == "python":
             if not imp.names:
                 if imp.alias:

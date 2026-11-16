@@ -142,7 +142,7 @@ def _python_binding(index: ModuleIndex, f: FileStructure, imp: ImportInfo, b: Im
 
 def _js_binding(index: ModuleIndex, f: FileStructure, imp: ImportInfo, b: ImportBindings) -> None:
     target = index.resolve_js(imp.module, f.file_path)
-    locals_ = [l for n in imp.names if n != "*" for l in _locals_for(imp, n)]
+    locals_ = [ln for n in imp.names if n != "*" for ln in _locals_for(imp, n)]
     if imp.alias:
         locals_.append(imp.alias)
     if target is None:

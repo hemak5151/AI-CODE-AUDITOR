@@ -14,6 +14,7 @@ import re
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from analysis_engine.baselines.common import SCOPE_CWES
 from analysis_engine.pipeline import analyze_sources
@@ -36,7 +37,7 @@ def _h(route: str, body: str) -> str:  # a JavaScript route handler
 
 
 # (cwe, language, variant, vulnerable, files)  -- a line ending in "# SINK" / "// SINK" marks the sink
-RAW = [
+RAW: list = [
     # ---- SQL injection, Python
     (Q89, "python", "direct_concat", True, _py("def view(cur):\n    n = request.args.get('n')\n    cur.execute(\"SELECT * FROM u WHERE n='\" + n + \"'\")  # SINK\n")),
     (Q89, "python", "fstring", True, _py("def view(cur):\n    n = request.args.get('n')\n    cur.execute(f\"SELECT * FROM u WHERE n='{n}'\")  # SINK\n")),
@@ -133,7 +134,9 @@ def build_cases() -> list:
     for i, (cwe, lang, variant, vulnerable, files) in enumerate(RAW, 1):
         if isinstance(files, str):  # a single top-level file
             files = {"app.py" if lang == "python" else "app.js": files}
-        clean, sink_file, sink_line = {}, None, 0
+        clean: dict = {}
+        sink_file: Any = None
+        sink_line = 0
         for name, code in files.items():
             lines = []
             for n, line in enumerate(code.split("\n"), 1):
@@ -180,7 +183,7 @@ def run_ours(cases: list) -> dict:
 def run_baseline_tools(cases: list, root: Path, out: Path, tools: tuple, rules_dir) -> dict:
     from analysis_engine.baselines.run import run_baselines
     run_baselines(str(root), str(out), tools=tools, rules_dir=rules_dir)
-    per_tool = {t: {} for t in tools}
+    per_tool: dict = {t: {} for t in tools}
     for line in (out / "c1_findings.jsonl").read_text(encoding="utf-8").splitlines():
         f = json.loads(line)
         case_id, _, rest = f["file_path"].partition("/")
@@ -210,13 +213,8 @@ def report(cases: list, results: dict) -> str:
     return "\n".join(out) + "\n"
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser(description="Score our engine, Bandit and Semgrep on a labelled development set")
-    ap.add_argument("--out", default="static_eval_out")
-    ap.add_argument("--tools", default="ours,bandit,semgrep")
-    ap.add_argument("--rules-dir")
-    args = ap.parse_args()
-    out = Path(args.out)
+def evaluate(out: Path, wanted: set, rules_dir=None) -> tuple:
+    """Write the cases under `out`, run the requested tools, and return (cases, results)."""
     shutil.rmtree(out, ignore_errors=True)
     root = out / "cases"
     cases = build_cases()
@@ -224,12 +222,23 @@ def main() -> None:
         for name, code in c.files.items():
             (root / c.id / name).parent.mkdir(parents=True, exist_ok=True)
             (root / c.id / name).write_bytes(code.encode("utf-8"))
-    wanted = {t.strip() for t in args.tools.split(",")}
-    findings = run_ours(cases) if "ours" in wanted else {}
+        findings = run_ours(cases) if "ours" in wanted else {}
     base = tuple(t for t in ("bandit", "semgrep") if t in wanted)
     if base:
-        findings.update(run_baseline_tools(cases, root, out / "baseline_run", base, args.rules_dir))
+        findings.update(run_baseline_tools(cases, root, out / "baseline_run", base, rules_dir))
     results = {t: {m: score(cases, by, m == "strict") for m in ("strict", "lenient")} for t, by in findings.items()}
+    return cases, results
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description="Score our engine, Bandit and Semgrep on a labelled development set")
+    ap.add_argument("--out", default="static_eval_out")
+    ap.add_argument("--tools", default="ours,bandit,semgrep")
+    ap.add_argument("--rules-dir")
+    args = ap.parse_args()
+    out = Path(args.out)
+    wanted = {t.strip() for t in args.tools.split(",")}
+    cases, results = evaluate(out, wanted, args.rules_dir)
     (out / "report.md").write_text(report(cases, results), encoding="utf-8")
     (out / "results.json").write_text(json.dumps({t: {m: {k: v for k, v in r.items() if k != "detected"} for m, r in modes.items()}
                                                    for t, modes in results.items()}, indent=2), encoding="utf-8")

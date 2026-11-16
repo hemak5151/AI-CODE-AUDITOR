@@ -124,7 +124,7 @@ def _py_imports(node) -> Iterator[ImportInfo]:
 
 
 def _extract_python(root, out: FileStructure) -> None:
-    stack = [(root, ())]
+    stack: list = [(root, ())]
     while stack:
         node, scope = stack.pop()
         new_scope = scope
@@ -263,7 +263,7 @@ def _js_require_binding(declarator, value, out: FileStructure) -> None:
 
 
 def _extract_javascript(root, out: FileStructure) -> None:
-    stack = [(root, ())]
+    stack: list = [(root, ())]
     while stack:
         node, scope = stack.pop()
         new_scope = scope
@@ -310,9 +310,9 @@ def _extract_javascript(root, out: FileStructure) -> None:
             out.classes.append(cinfo)
             new_scope = scope + (("class", name, cinfo),)
         elif t == "import_statement":
-            info = _js_import(node)
-            if info:
-                out.imports.append(info)
+            imp = _js_import(node)
+            if imp:
+                out.imports.append(imp)
             continue
         elif t == "call_expression":
             target = _js_require_target(node)

@@ -9,7 +9,7 @@ like `obj.method()`, stay unresolved. They are counted, not guessed.
 """
 import builtins
 from collections import Counter, deque
-from typing import Optional
+from typing import Any, Optional
 
 import networkx as nx
 
@@ -89,7 +89,8 @@ class CallResolver:
         """Resolve a dotted name like `core.Engine.start` to what it refers to."""
         parts = dotted.split(".")
         b = self.bindings[path]
-        cur, i = None, 1
+        cur: Any = None
+        i = 1
         for k in range(len(parts), 0, -1):  # longest imported-module prefix first
             prefix = ".".join(parts[:k])
             if prefix in b.modules:

@@ -52,7 +52,7 @@ def short_rule_id(check_id: str) -> str:
 
 
 def normalize_semgrep(raw: dict, stage: Path) -> list:
-    findings = {}
+    findings: dict = {}
     for r in raw.get("results", []):
         extra = r.get("extra", {})
         meta = extra.get("metadata") or {}

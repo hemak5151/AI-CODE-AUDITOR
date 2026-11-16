@@ -6,7 +6,7 @@ params, methods) use analysis_engine.parser.structure.extract_structure().
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import tree_sitter_javascript as tsjs
 import tree_sitter_python as tspy
@@ -15,7 +15,7 @@ from tree_sitter import Language, Parser, Query
 try:  # tree-sitter >= 0.25 runs queries through a cursor object
     from tree_sitter import QueryCursor
 except ImportError:  # pragma: no cover - older releases
-    QueryCursor = None
+    QueryCursor = None  # type: ignore[assignment,misc]
 
 _LANGUAGES = {
     "python": Language(tspy.language()),
@@ -81,7 +81,7 @@ def parse_tree(source: str, language: str):
 _QUERIES: dict = {}
 
 
-def node_query(language: str, types) -> Optional[object]:
+def node_query(language: str, types) -> Optional[Any]:
     """A compiled query matching every node whose type is in `types` (types the grammar lacks are skipped)."""
     key = (language, tuple(types))
     with _query_lock:
@@ -90,8 +90,10 @@ def node_query(language: str, types) -> Optional[object]:
     return _QUERIES[key]
 
 
-def _compile_query(language: str, types) -> Optional[object]:
+def _compile_query(language: str, types) -> Optional[Any]:
     lang = _LANGUAGES.get(language)
+    if lang is None:
+        return None
     # the method was renamed between releases (id_for_node_type -> id_for_node_kind)
     lookup = getattr(lang, "id_for_node_kind", None) or getattr(lang, "id_for_node_type", None)
     valid = [t for t in types if lang is not None and (lookup is None or lookup(t, True))]
@@ -101,7 +103,7 @@ def _compile_query(language: str, types) -> Optional[object]:
     try:
         return Query(lang, source)
     except TypeError:  # pragma: no cover - older releases
-        return lang.query(source)
+        return lang.query(source)  # type: ignore[attr-defined]
 
 
 def nodes_of_types(tree, language: str, types) -> list:
@@ -109,7 +111,7 @@ def nodes_of_types(tree, language: str, types) -> list:
     query = node_query(language, types)
     if query is None or tree is None:
         return []
-    caps = QueryCursor(query).captures(tree.root_node) if QueryCursor else query.captures(tree.root_node)
+    caps = QueryCursor(query).captures(tree.root_node) if QueryCursor is not None else query.captures(tree.root_node)
     nodes = caps.get("n", []) if isinstance(caps, dict) else [n for n, _ in caps]
     return sorted(nodes, key=lambda n: (n.start_byte, -n.end_byte))
 

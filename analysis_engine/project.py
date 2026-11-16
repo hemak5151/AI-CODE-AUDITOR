@@ -9,7 +9,7 @@ from typing import Optional
 
 from analysis_engine.graph.callgraph import CallResolver, build_call_graph
 from analysis_engine.ingest import iter_source_files
-from analysis_engine.parser.models import FileStructure, FunctionInfo
+from analysis_engine.parser.models import FunctionInfo
 from analysis_engine.parser.structure import extract_structure
 from analysis_engine.parser.treesitter_parser import detect_language, nodes_of_types, parse_tree
 
@@ -81,6 +81,7 @@ class Project:
             self.sources.pop(path, None)
             self.file_map.pop(path, None)
         else:
+            assert source is not None
             self.sources[path] = source
             self.file_map[path] = extract_structure(source, language, path)
         self.files = sorted(self.file_map.values(), key=lambda f: f.file_path)

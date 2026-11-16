@@ -70,7 +70,7 @@ def run_baselines(target: str, out_dir: str, tools=("bandit", "semgrep"), rules_
         py_files = sum(1 for s in staged if s.language == "python")
         scope = set(cwes) if cwes else None
         findings, summaries = [], {}
-        meta = {"configuration": "C1", "date": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        meta: dict = {"configuration": "C1", "date": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 "target": str(target), "python": sys.version.split()[0], "platform": platform.platform(),
                 "scope_cwes": list(SCOPE_CWES), "filtered_to": sorted(scope) if scope else None,
                 "files": [s.path for s in staged], "files_by_language": {
