@@ -1,3 +1,6 @@
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["backend/tests", "analysis_engine/tests", "tests"]
+markers = [
+    "docker: tests requiring a real Docker daemon",
+]

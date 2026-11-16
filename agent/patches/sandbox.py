@@ -93,6 +93,19 @@ class DockerSandboxRunner:
         except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
             return False
 
+    @classmethod
+    def from_env(cls):
+        """Create a sandbox runner using deployment environment settings."""
+        import os
+
+        return cls(
+            image=os.getenv("SANDBOX_IMAGE", "python:3.12-slim"),
+            memory_limit=os.getenv("SANDBOX_MEMORY_LIMIT", "512m"),
+            cpu_limit=float(os.getenv("SANDBOX_CPU_LIMIT", "1")),
+            pids_limit=int(os.getenv("SANDBOX_PIDS_LIMIT", "64")),
+            timeout_seconds=int(os.getenv("SANDBOX_TIMEOUT_SECONDS", "30")),
+        )
+
     def run(
         self,
         workspace_dir: Path,
