@@ -1,4 +1,6 @@
 import json
+import time
+from pathlib import Path
 
 from agent.agents.workflow import run_agent_workflow
 from agent.models.contracts import AgentInput, LLMRequest, LLMResponse
@@ -205,3 +207,306 @@ def test_repair_workflow_skips_critic_when_refactor_makes_no_change(
     assert result.critic_review is None
     assert result.patch_accepted is False
     assert result.output.patch is None
+
+class RejectCriticOnceProvider(RepairWorkflowFakeProvider):
+    """Reject the first patch, then approve the repaired patch."""
+
+    def __init__(self):
+        super().__init__(patch_mode="valid")
+        self.critic_calls = 0
+        self.refactor_prompts = []
+
+    def generate(self, request: LLMRequest) -> LLMResponse:
+        properties = (
+            request.response_format or {}
+        ).get("properties", {})
+
+        if "revised_source" in properties:
+            self.refactor_prompts.append(request.prompt)
+
+        if "approved" in properties:
+            self.critic_calls += 1
+
+            if self.critic_calls == 1:
+                self.call_count += 1
+                response = {
+                    "approved": False,
+                    "confidence": 0.95,
+                    "issues": [
+                        "The first patch needs another review."
+                    ],
+                    "explanation": (
+                        "First patch is insufficient; "
+                        "replace SQL concatenation with a "
+                        "parameterized query."
+                    ),
+                    "recommended_changes": (
+                        "Use a parameterized SQL query."
+                    ),
+                }
+
+                return LLMResponse(
+                    content=json.dumps(response),
+                    model="test-model",
+                    tokens=25,
+                )
+
+        return super().generate(request)
+
+
+def test_critic_rejection_triggers_bounded_repair_retry(tmp_path):
+    provider = RejectCriticOnceProvider()
+
+    result = run_agent_workflow(
+        agent_input=make_agent_input(),
+        source_code=SOURCE_CODE,
+        provider=provider,
+        log_path=tmp_path / "repair_retry.jsonl",
+        generate_patch=True,
+        max_repair_attempts=1,
+    )
+
+    # Initial workflow: Detector, Guideline Checker,
+    # Refactor, Critic. Retry: Refactor, Critic.
+    assert provider.call_count == 6
+    assert provider.critic_calls == 2
+
+    # Exactly one additional repair attempt occurred.
+    assert result.repair_attempts == 1
+    assert result.max_repair_attempts == 1
+
+    # Refactor was called twice.
+    assert len(provider.refactor_prompts) == 2
+
+    # Critic feedback reached the second Refactor call.
+    assert (
+        "First patch is insufficient"
+        in provider.refactor_prompts[1]
+    )
+
+    # The second patch was approved.
+    assert result.critic_review is not None
+    assert result.critic_review.approved is True
+    assert result.patch_accepted is True
+    assert result.output.patch is not None
+
+class ValidationFailOnceProvider(RepairWorkflowFakeProvider):
+    """Return invalid Python first, then a valid security fix."""
+
+    def __init__(self):
+        super().__init__(patch_mode="valid")
+        self.refactor_calls = 0
+        self.refactor_prompts = []
+
+    def generate(self, request: LLMRequest) -> LLMResponse:
+        properties = (
+            request.response_format or {}
+        ).get("properties", {})
+
+        if "revised_source" in properties:
+            self.refactor_calls += 1
+            self.refactor_prompts.append(request.prompt)
+
+            if self.refactor_calls == 1:
+                self.call_count += 1
+                return LLMResponse(
+                    content=json.dumps({
+                        "revised_source": "def broken(:\n    pass\n",
+                        "description": "Intentionally invalid Python for testing.",
+                    }),
+                    model="test-model",
+                    tokens=25,
+                )
+
+        return super().generate(request)
+
+
+def test_validation_failure_triggers_bounded_repair_retry(tmp_path):
+    provider = ValidationFailOnceProvider()
+
+    result = run_agent_workflow(
+        agent_input=make_agent_input(),
+        source_code=SOURCE_CODE,
+        provider=provider,
+        log_path=tmp_path / "validation_retry.jsonl",
+        generate_patch=True,
+        max_repair_attempts=1,
+    )
+
+    # Detector, Guideline Checker, two Refactor calls, one Critic call.
+    assert provider.call_count == 5
+    assert provider.refactor_calls == 2
+
+    # Exactly one additional repair attempt occurred.
+    assert result.repair_attempts == 1
+    assert result.max_repair_attempts == 1
+
+    # The second Refactor call received repair instructions.
+    assert "This is a repair attempt." in provider.refactor_prompts[1]
+
+    # The corrected patch passed validation and Critic review.
+    assert result.critic_review is not None
+    assert result.critic_review.approved is True
+    assert result.patch_accepted is True
+    assert result.output.patch is not None
+    assert result.output.patch.unified_diff is not None
+
+class RejectCriticNTimesProvider(RepairWorkflowFakeProvider):
+    """Reject a fixed number of patches before approving one."""
+
+    def __init__(self, rejection_count):
+        super().__init__(patch_mode="valid")
+        self.rejection_count = rejection_count
+        self.critic_calls = 0
+        self.refactor_calls = 0
+
+    def generate(self, request: LLMRequest) -> LLMResponse:
+        properties = (
+            request.response_format or {}
+        ).get("properties", {})
+
+        if "revised_source" in properties:
+            self.refactor_calls += 1
+
+        if "approved" in properties:
+            self.critic_calls += 1
+
+            if self.critic_calls <= self.rejection_count:
+                self.call_count += 1
+                return LLMResponse(
+                    content=json.dumps({
+                        "approved": False,
+                        "confidence": 0.95,
+                        "issues": ["Additional correction required."],
+                        "explanation": (
+                            "The previous patch needs further correction."
+                        ),
+                        "recommended_changes": (
+                            "Review and improve the parameterized SQL fix."
+                        ),
+                    }),
+                    model="test-model",
+                    tokens=25,
+                )
+
+        return super().generate(request)
+
+
+def test_repair_depth_comparison(tmp_path):
+    results = []
+
+    # Three rejections require three additional repair attempts.
+    for depth in range(4):
+        provider = RejectCriticNTimesProvider(
+            rejection_count=3
+        )
+
+        started = time.perf_counter()
+
+        result = run_agent_workflow(
+            agent_input=make_agent_input(),
+            source_code=SOURCE_CODE,
+            provider=provider,
+            log_path=tmp_path / f"depth_{depth}.jsonl",
+            generate_patch=True,
+            max_repair_attempts=depth,
+        )
+
+        latency_ms = (time.perf_counter() - started) * 1000
+
+        expected_acceptance = depth == 3
+
+        assert result.repair_attempts == depth
+        assert result.patch_accepted is expected_acceptance
+        assert provider.refactor_calls == depth + 1
+        assert provider.critic_calls == depth + 1
+
+        results.append({
+            "repair_depth": depth,
+            "actual_repair_attempts": result.repair_attempts,
+            "refactor_calls": provider.refactor_calls,
+            "critic_calls": provider.critic_calls,
+            "patch_accepted": result.patch_accepted,
+            "latency_ms": round(latency_ms, 3),
+            "model": "deterministic-fake-provider",
+        })
+
+    results_path = Path("research_results")
+    results_path.mkdir(exist_ok=True)
+
+    output_file = results_path / "member3_repair_depth_results.json"
+    output_file.write_text(
+        json.dumps(results, indent=2),
+        encoding="utf-8",
+    )
+
+    print("\nREPAIR DEPTH EXPERIMENT")
+    print(json.dumps(results, indent=2))
+    print(f"\nResults saved to: {output_file}")
+class CriticEffectivenessProvider(RepairWorkflowFakeProvider):
+    """Produces a changed but still vulnerable patch."""
+
+    def __init__(self):
+        super().__init__(patch_mode="valid")
+        self.critic_calls = 0
+
+    def generate(self, request: LLMRequest) -> LLMResponse:
+        properties = (
+            request.response_format or {}
+        ).get("properties", {})
+
+        if "revised_source" in properties:
+            self.call_count += 1
+            return LLMResponse(
+                content=json.dumps({
+                    "revised_source": (
+                        SOURCE_CODE
+                        + "\n# SQL concatenation remains unsafe\n"
+                    ),
+                    "description": "Added a comment without fixing SQL injection.",
+                }),
+                model="test-model",
+                tokens=25,
+            )
+
+        if "approved" in properties:
+            self.critic_calls += 1
+            self.call_count += 1
+            return LLMResponse(
+                content=json.dumps({
+                    "approved": False,
+                    "confidence": 0.99,
+                    "issues": ["SQL injection remains unresolved."],
+                    "explanation": (
+                        "The patch does not replace SQL concatenation "
+                        "with parameterized queries."
+                    ),
+                    "recommended_changes": (
+                        "Use parameterized SQL queries."
+                    ),
+                }),
+                model="test-model",
+                tokens=25,
+            )
+
+        return super().generate(request)
+
+
+def test_critic_rejects_patch_that_does_not_fix_vulnerability(tmp_path):
+    provider = CriticEffectivenessProvider()
+
+    result = run_agent_workflow(
+        agent_input=make_agent_input(),
+        source_code=SOURCE_CODE,
+        provider=provider,
+        log_path=tmp_path / "critic_effectiveness.jsonl",
+        generate_patch=True,
+        max_repair_attempts=0,
+    )
+
+    assert result.critic_review is not None
+    assert result.critic_review.approved is False
+    assert result.patch_accepted is False
+    assert provider.critic_calls == 1
+    assert "SQL injection remains unresolved." in result.critic_review.issues
+

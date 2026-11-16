@@ -1,0 +1,38 @@
+[
+  {
+    "repair_depth": 0,
+    "actual_repair_attempts": 0,
+    "refactor_calls": 1,
+    "critic_calls": 1,
+    "patch_accepted": false,
+    "latency_ms": 197.287,
+    "model": "deterministic-fake-provider"
+  },
+  {
+    "repair_depth": 1,
+    "actual_repair_attempts": 1,
+    "refactor_calls": 2,
+    "critic_calls": 2,
+    "patch_accepted": false,
+    "latency_ms": 377.411,
+    "model": "deterministic-fake-provider"
+  },
+  {
+    "repair_depth": 2,
+    "actual_repair_attempts": 2,
+    "refactor_calls": 3,
+    "critic_calls": 3,
+    "patch_accepted": false,
+    "latency_ms": 534.076,
+    "model": "deterministic-fake-provider"
+  },
+  {
+    "repair_depth": 3,
+    "actual_repair_attempts": 3,
+    "refactor_calls": 4,
+    "critic_calls": 4,
+    "patch_accepted": true,
+    "latency_ms": 697.624,
+    "model": "deterministic-fake-provider"
+  }
+]
