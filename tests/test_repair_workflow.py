@@ -509,4 +509,43 @@ def test_critic_rejects_patch_that_does_not_fix_vulnerability(tmp_path):
     assert result.patch_accepted is False
     assert provider.critic_calls == 1
     assert "SQL injection remains unresolved." in result.critic_review.issues
+def test_repair_stops_when_maximum_attempts_are_exhausted(tmp_path):
+    provider = RejectCriticNTimesProvider(rejection_count=10)
+
+    result = run_agent_workflow(
+        agent_input=make_agent_input(),
+        source_code=SOURCE_CODE,
+        provider=provider,
+        log_path=tmp_path / "repair_exhausted.jsonl",
+        generate_patch=True,
+        max_repair_attempts=2,
+    )
+
+    assert result.repair_attempts == 2
+    assert result.max_repair_attempts == 2
+    assert provider.refactor_calls == 3
+    assert provider.critic_calls == 3
+    assert result.patch_accepted is False
+    assert result.output.patch is None
+    repair_log = tmp_path / "repair_attempts.jsonl"
+
+    records = [
+        json.loads(line)
+        for line in repair_log.read_text(
+            encoding="utf-8"
+        ).splitlines()
+    ]
+
+    assert len(records) == 3
+    assert [record["outcome"] for record in records] == [
+    "critic_rejected",
+    "critic_rejected",
+    "critic_rejected",
+    ]
+    assert all(
+        record["prompt_version"] == "repair-loop-v1"
+        for record in records
+    )
+    assert all(record["date"] for record in records)
+    assert all(record["details"] for record in records)
 

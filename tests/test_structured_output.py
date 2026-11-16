@@ -75,3 +75,18 @@ def test_invalid_json_raises_after_max_attempts():
         )
 
     assert len(provider.requests) == 2
+def test_invalid_schema_retries_and_recovers():
+    provider = SequenceProvider([
+        '{"wrong_field": "hello"}',
+        '{"answer": "hello"}',
+    ])
+
+    result = generate_structured(
+        provider,
+        LLMRequest(prompt="Return an answer."),
+        Result,
+        max_attempts=2,
+    )
+
+    assert result.answer == "hello"
+    assert len(provider.requests) == 2
