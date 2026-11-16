@@ -19,7 +19,10 @@ def docker_runner():
 
 
 def test_docker_normal_command_can_read_workspace(tmp_path, docker_runner):
-    (tmp_path / "probe.txt").write_text("workspace-ok", encoding="utf-8")
+    tmp_path.chmod(0o755)
+    probe = tmp_path / "probe.txt"
+    probe.write_text("workspace-ok", encoding="utf-8")
+    probe.chmod(0o644)
     result = docker_runner.run(
         tmp_path,
         ["python", "-c",

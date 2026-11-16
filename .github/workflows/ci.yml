@@ -13,7 +13,7 @@ jobs:
         with: { python-version: "3.12" }
       - run: pip install -r backend/requirements.txt ruff
       - run: ruff check backend
-      - run: pytest -q
+      - run: pytest -q -m "not docker"
   frontend:
     runs-on: ubuntu-latest
     steps:

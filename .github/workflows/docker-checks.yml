@@ -5,6 +5,9 @@ on:
     paths:
       - ".github/workflows/docker-checks.yml"
       - ".github/scripts/**"
+      - "agent/patches/**"
+      - "tests/test_sandbox_docker_extra.py"
+      - "pyproject.toml"
 jobs:
   sandbox:
     runs-on: ubuntu-latest
@@ -16,6 +19,8 @@ jobs:
       - name: Dependency versions (for pinning)
         run: pip show ollama langgraph | grep -E "^(Name|Version)"
       - run: docker pull python:3.12-slim
+      - name: Run Docker integration tests
+        run: PYTHONPATH=. pytest -q -m docker
       - run: PYTHONPATH=. python .github/scripts/sandbox_smoke.py
   compose:
     runs-on: ubuntu-latest
